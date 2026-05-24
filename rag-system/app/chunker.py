@@ -1,11 +1,9 @@
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_text_splitters import NLTKTextSplitter
 
-def chunk_clean_text(text, chunk_size=500, chunk_overlap=100):
-    text_splitter = RecursiveCharacterTextSplitter(
+def chunk_clean_text(text, chunk_size=800, chunk_overlap=150):
+    text_splitter = NLTKTextSplitter(
         chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-        separators=["\n\n", "\n", " ", ""]
+        chunk_overlap=chunk_overlap
     )
 
     chunk_list = text_splitter.split_text(text)

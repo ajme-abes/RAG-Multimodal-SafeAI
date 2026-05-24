@@ -5,4 +5,4 @@ __pycache__/
 instance/
 *.log
 chroma_db
-rag-system/app/loade.py
+rag-system/test/loade.py

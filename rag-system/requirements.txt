@@ -10,3 +10,4 @@ chromadb>=0.4.24
 streamlit>=1.32.0
 pypdf>=6.12.0
 sentence_transformers>=5.5.1
+nltk>=3.9.4
