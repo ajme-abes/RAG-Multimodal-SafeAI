@@ -4,6 +4,7 @@ from chunker import chunk_clean_text
 from embeding import create_embedding
 from vectore_store import create_vector_store
 from retriever import create_retriever
+from qa_pipeline import excute_query_pipeline
 def run_pipeline(pdf_path):
     print("=== STARTING RAG DATA PIPELINE ===")
     
@@ -21,8 +22,10 @@ def run_pipeline(pdf_path):
     # 3. Chunk the Cleaned Text
     print(f"\nStep 2: Splitting text into chunks (Size: 800, Overlap: 150)...")
     chunks = chunk_clean_text(full_text, chunk_size=800, chunk_overlap=150)
-    
     print(f"Success! Created {len(chunks)} total chunks.")
+
+    chunks_id = [f"chunk_{i}" for i in range(len(chunks))]
+
 
     # create embedding
     print(f"\n step3: craete embedding for chunks...")
@@ -35,12 +38,14 @@ def run_pipeline(pdf_path):
     print("success! vectore store created and stored in chroma db")
 
     #5 retrive similar chunks
+    user_query = input("enter your query: ")
     print("retrive similar chunks from vectore store")
-    retriver = create_retriever(vectore_store)
+    retriver = create_retriever(vectore_store, user_query)
     print("sucessfully retrived similar chunks from vectore store")
 
 
-   
+    #6 execute query pipeline
+    excute_query_pipeline(vectore_store, user_query)
 
 
 if __name__ == "__main__":

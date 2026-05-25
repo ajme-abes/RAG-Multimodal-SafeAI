@@ -1,14 +1,12 @@
 from vectore_store import create_vector_store
 
-def create_retriever(vector_store):
-    query = input("enter your query")
-    retriver = vector_store.as_retriever(
+def create_retriever(vector_store, query):
+    retriever = vector_store.as_retriever(
         search_type = "mmr",
         search_kwargs = {"k": 3}
     )
-    similar_docs = retriver.invoke(query)
+    similar_docs = retriever.invoke(query)
 
-    print("top 3: similar chunks recived from vector store")
+    return similar_docs
 
-    for docs in similar_docs:
-        print(f"-- {docs.page_content[:100]}")
+
