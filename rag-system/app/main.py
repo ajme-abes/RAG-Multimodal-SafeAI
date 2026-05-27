@@ -26,7 +26,6 @@ def run_pipeline(pdf_path):
 
     chunks_id = [f"chunk_{i}" for i in range(len(chunks))]
 
-
     # create embedding
     print(f"\n step3: craete embedding for chunks...")
     embeddings = create_embedding()
@@ -42,7 +41,6 @@ def run_pipeline(pdf_path):
     print("retrive similar chunks from vectore store")
     retriver = create_retriever(vectore_store, user_query)
     print("sucessfully retrived similar chunks from vectore store")
-
 
     #6 execute query pipeline
     excute_query_pipeline(vectore_store, user_query)
