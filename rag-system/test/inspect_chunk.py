@@ -1,5 +1,5 @@
-import os
-import sys
+import os, sys
+
 # Ensure the parent `rag-system` directory is on sys.path so `app` package imports work
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -11,7 +11,7 @@ def inspect_chunk(pdf_path):
     print("--------starting debuging chunking quality--------------")
 
     cleaned_text, total_length = extract_clean_text_pdf(pdf_path)
-    chunks = chunk_clean_text(cleaned_text, chunk_size=800, chunk_overlap=150)
+    chunks, metadata = chunk_clean_text(cleaned_text, file_name=pdf_path, chunk_size=800, chunk_overlap=150)
 
     too_short_count = 0
     broken_sentence_count = 0
@@ -26,7 +26,8 @@ def inspect_chunk(pdf_path):
         total_chars += chunk_len
 
         is_too_short = chunk_len < min_len_treshold
-        is_broken_sentence = not chunk.endswith(valid_endings)
+
+        is_broken_sentence = not chunk[-1].endswith(valid_endings)
 
         if is_too_short or is_broken_sentence:
             print(f"issues found in chunk {idx + 1}: Length={chunk_len}, Ends with valid punctuation: {not is_broken_sentence}")

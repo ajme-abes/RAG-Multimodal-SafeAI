@@ -1,12 +1,16 @@
-# vector.py
 from langchain_community.vectorstores import Chroma
 import chromadb
 
 def create_vector_store(chunk_list, metadatas, embedding_model):
-    # Initializes a local storage client 
     persistent_client = chromadb.PersistentClient(path="./chroma_db")
+    
+    # CRITICAL FIX: Clear old collections to prevent state corruption
+    try:
+        persistent_client.delete_collection("rag_chunks")
+        print("🧹 DEBUG: Cleared old vector tables successfully.")
+    except Exception:
+        pass
 
-    # Builds the vector store along with text snippets and source metadata
     vector_store = Chroma.from_texts(
         texts=chunk_list,
         metadatas=metadatas,

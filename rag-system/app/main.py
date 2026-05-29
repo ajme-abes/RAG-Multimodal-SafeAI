@@ -10,10 +10,10 @@ def run_pipeline(pdf_path):
     
     # 2. Load and Clean the PDF
     print(f"\nStep 1: Reading and cleaning text from: {pdf_path}...")
-    full_text, total_length = extract_clean_text_pdf(pdf_path)
+    page_data, total_length = extract_clean_text_pdf(pdf_path)
     
     # Safety check if the PDF failed to load
-    if not full_text:
+    if not page_data:
         print("Pipeline stopped: Could not read any text from the PDF.")
         return
         
@@ -21,10 +21,8 @@ def run_pipeline(pdf_path):
 
     # 3. Chunk the Cleaned Text
     print(f"\nStep 2: Splitting text into chunks (Size: 800, Overlap: 150)...")
-    chunks = chunk_clean_text(full_text, chunk_size=800, chunk_overlap=150)
+    chunks = chunk_clean_text(page_data, file_name=pdf_path, chunk_size=800, chunk_overlap=150)
     print(f"Success! Created {len(chunks)} total chunks.")
-
-    chunks_id = [f"chunk_{i}" for i in range(len(chunks))]
 
     # create embedding
     print(f"\n step3: craete embedding for chunks...")

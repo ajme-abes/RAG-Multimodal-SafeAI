@@ -1,10 +1,12 @@
-# retriever.py
 
-def create_retriever(vector_store, query):
-    # Setup MMR search to maximize both relevance and chunk diversity
-    retriever = vector_store.as_retriever(
-        search_type="mmr",
-        search_kwargs={"k": 3}
-    )
-    similar_docs = retriever.invoke(query)
-    return similar_docs
+def create_retriever(vector_store, query, distance_threshold=0.75, k=3):
+    
+    raw_text = vector_store.similarity_search_with_score(query, k=k)
+    filtered_doc = []
+
+    for doc, score in raw_text:
+        if score <= distance_threshold:
+            doc.metadata["score"] = round(float(score), 4)
+            filtered_doc.append(doc)
+
+    return filtered_doc

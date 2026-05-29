@@ -1,4 +1,3 @@
-# loader.py
 import re
 from pypdf import PdfReader
 

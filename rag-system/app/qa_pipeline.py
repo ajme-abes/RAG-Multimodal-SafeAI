@@ -1,4 +1,3 @@
-# qa_pipeline.py
 import subprocess
 import os
 import requests
@@ -74,43 +73,66 @@ def run_google_genai(prompt, model="gemini-2.5-flash"):
         return None
 
 def execute_query_pipeline(vector_store, user_query):
-    print(f"\n[1] User query received: {user_query}")
+
+    if not user_query or user_query.strip():
+        return "⚠️ Error: Received an empty or invalid search query. Please type a meaningful question.", []
+
+    if vector_store is None: 
+        return "⚠️ Error: The vector store is not initialized. Please upload and process a PDF document first.", []
+    
+    print(f"\n[1] Processing User Incoming  Question: {user_query}")
     
     # 1. Retrieve raw similar document chunks
-    search_results = create_retriever(vector_store, user_query)
-    
-    if not search_results:
-        return "I cannot find any text context matching your query.", []
+    try:
+       search_result = create_retriever(vector_store, user_query, distance_threshold=0.80)
+    except Exception as e:
+        print(f"Error occurred while retrieving search results: {e}")
+        return "An error occurred while processing your query.", []
+
+    if not search_result:
+        print("No relevant chunks retrieved from vector store. Returning fallback response.")
+        return "I cannot find the answer within the provided documentation.", []
+
 
     # 2. Extract and format all chunks into a unified string context block
     context_pieces = []
     citations = []
-    
-    for idx, doc in enumerate(search_results):
-        context_pieces.append(f"--- Context Chunk {idx+1} ---\n{doc.page_content}")
-        citations.append({
+
+    if search_result:
+        for idx, doc in enumerate(search_result):
+            context_pieces.append(f"--- Context Chunk {idx+1} ---\n{doc.page_content}")
+            citations.append({
             "text": doc.page_content,
             "source": doc.metadata.get("source_file", "Unknown Document"),
-            "page": doc.metadata.get("page_number", "Unknown Page")
-        })
-        
-    unified_context = "\n\n".join(context_pieces)
-    print(f"[2] Retrieved {len(search_results)} relevant chunks.")
+            "page": doc.metadata.get("page_number", "Unknown Page"),
+            "score": doc.metadata.get("score", 0.0)
+
+            })
+
+        unified_context = "\n\n".join(context_pieces)
+        print(f"[2] Retrieval successful. Found {len(search_result)} relevant references.")
+    else:
+        # Gracefully handle total retrieval failures / off-topic queries
+        print("ℹ️ Zero chunks passed the distance threshold. Proceeding with empty context fallback.")
+        unified_context = "NO RELEVANT CONTENT FOUND IN KNOWLEDGE BASE."
+    
+    
 
     # 3. Formulate the Strict Grounded Prompt 
     grounded_prompt = f"""
-You are a strict technical Q&A clerk. Your job is to answer the User Question using ONLY the factual statements provided in the Reference Context block below.
+    You are a highly precise enterprise documentation clerk. Your sole objective is to answer the final user question using ONLY the facts explicitly provided within the Reference Context block below.
 
-=== REFERENCE CONTEXT ===
-{unified_context}
-=========================
+    === REFERENCE CONTEXT ===
+    {unified_context}
+    =========================
 
-USER QUESTION: {user_query}
+    FINAL USER QUESTION: {user_query}
 
-STRICT INSTRUCTIONS:
-1. Base your answer entirely on the Reference Context. 
-2. If the answer cannot be explicitly found within the context, you must reply exactly with: "I cannot find the answer within the provided documentation." Do not guess or extrapolate.
-"""
+    STRICT INSTRUCTIONS:
+    1. Base your answer entirely on the provided context. If the answer is not explicitly written there, respond with exactly: "I cannot find the relevant information inside the uploaded documentation."
+    2. DO NOT use conversational filler (e.g., "Based on the context provided...", "Sure, here is the answer..."). Start immediately with the direct facts.
+    3. You MUST format your answer using clean, professional Markdown. Use bold headers or bullet points if explaining a multi-step process or a list of specifications.
+    """
 
     # 4. Fallback Execution Loop Chain
     print(f"[3] Dispatching Grounded Prompt to Model Stack...")
