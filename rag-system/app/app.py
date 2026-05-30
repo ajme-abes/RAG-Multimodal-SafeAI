@@ -5,8 +5,8 @@ from tempfile import NamedTemporaryFile
 # Import pipeline dependencies
 from loader import extract_clean_text_pdf
 from chunker import chunk_clean_text
-from embeding import get_embedding_model
-from vectore_store import create_vector_store
+from embedding import get_embedding_model
+from vector_store import create_vector_store
 from qa_pipeline import execute_query_pipeline
 
 st.set_page_config(page_title="Production RAG System", page_icon="⚙️", layout="wide")
@@ -106,7 +106,10 @@ if user_input := st.chat_input("Ask a question about your knowledge base..."):
             else:
                 with st.spinner("🔍 Querying Vector Database & Generating Structured Answer..."):
                     try:
-                        answer, citations = execute_query_pipeline(st.session_state.vector_store, user_input)
+                        answer, citations = execute_query_pipeline(
+                            st.session_state.vector_store,
+                            user_input,
+                            chat_history=st.session_state.chat_history)
                         
                         st.markdown("### 📑 Answer:")
                         st.markdown(answer)

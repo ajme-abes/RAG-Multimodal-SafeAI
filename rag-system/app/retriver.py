@@ -1,5 +1,5 @@
 
-def create_retriever(vector_store, query, distance_threshold=0.75, k=3):
+def create_retriever(vector_store, query, distance_threshold=0.88, k=3):
     
     raw_text = vector_store.similarity_search_with_score(query, k=k)
     filtered_doc = []

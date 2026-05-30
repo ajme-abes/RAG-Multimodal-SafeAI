@@ -1,9 +1,9 @@
 # 1. Bring in the tools from your other files
 from loader import extract_clean_text_pdf
 from chunker import chunk_clean_text
-from embeding import create_embedding
-from vectore_store import create_vector_store
-from retriever import create_retriever
+from embedding import get_embedding_model
+from vector_store import create_vector_store
+from retriver import create_retriever
 from qa_pipeline import excute_query_pipeline
 def run_pipeline(pdf_path):
     print("=== STARTING RAG DATA PIPELINE ===")
@@ -26,7 +26,7 @@ def run_pipeline(pdf_path):
 
     # create embedding
     print(f"\n step3: craete embedding for chunks...")
-    embeddings = create_embedding()
+    embeddings = get_embedding_model()
     print("sucess! embedding craeted")
 
     #4. stor vectore in db
