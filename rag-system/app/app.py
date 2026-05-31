@@ -91,22 +91,33 @@ with st.sidebar:
     if st.button("Purge Entire Knowledge Base Storage"):
         import shutil
         import os
+        import gc
         
-        # 1. Physically delete the underlying vector files from the disk
+        # 1. CRITICAL: Kill the active memory client binds to release file locks
+        if "vector_store" in st.session_state and st.session_state.vector_store is not None:
+            try:
+                # Tell Chroma to close connections and clear its internal systems
+                st.session_state.vector_store._client.reset() 
+            except Exception:
+                pass
+        
+        # Completely nullify the memory tracking variables
+        st.session_state.vector_store = None
+        st.session_state.uploaded_documents_list = []
+        st.session_state.chat_history = []
+        
+        # Run Python garbage collection to forcefully flush the dead file hooks out of RAM
+        gc.collect()
+        
+        # 2. Now it is completely safe to delete the physical directory without lock exceptions
         if os.path.exists("./chroma_db"):
             try:
                 shutil.rmtree("./chroma_db")
-                print("🗑️ Database directory wiped successfully.")
+                print("🗑️ Database directory wiped cleanly.")
             except Exception as e:
                 print(f"Error deleting database files: {e}")
                 
-        st.session_state.chat_history = []
-        st.session_state.vector_store = None
-        st.session_state.uploaded_documents_list = [] # Resets the name list back to empty!
-        
-        st.success("Database and session variables fully wiped!")
-        
-        # 3. Force a complete script rerun to clean up the interface immediately
+        st.success("Database and session hooks fully wiped!")
         st.rerun()
 
 # Conversational Interface Section
