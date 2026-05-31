@@ -47,10 +47,8 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload a System Manual (PDF)", type=["pdf"])
     
     if uploaded_file:
-        # Check if this exact file name has already been processed into the index
-        if uploaded_file.name in st.session_state.uploaded_documents_list:
-            st.warning(f"⚠️ `{uploaded_file.name}` is already indexed inside the knowledge base storage.")
-        else:
+        # Move the name check inside the action execution block
+        if uploaded_file.name not in st.session_state.uploaded_documents_list:
             with st.spinner(f"Vectorizing and appending `{uploaded_file.name}`..."):
                 if uploaded_file.size == 0:
                     st.error("❌ Ingestion Rejected: Empty file.")
@@ -69,16 +67,16 @@ with st.sidebar:
                             chunks, metadatas = chunk_clean_text(pages_data, uploaded_file.name)
                             
                             if chunks:
-                                # Appends data cleanly to the existing database index matrix
+                                # Append to the continuous vector index matrix
                                 st.session_state.vector_store = create_vector_store(
                                     chunks, metadatas, embedding_model
                                 )
-                                # Add the newly completed file name to our sidebar list display
+                                # Save the name to the memory list to update the visual sidebar checklist
                                 st.session_state.uploaded_documents_list.append(uploaded_file.name)
                                 st.success(f"Appended {len(chunks)} chunks successfully!")
-                                st.rerun() # Rerun UI layout to update the checklist immediately
+                                st.rerun() # Refresh layout to cleanly transition state
                             else:
-                                st.error("❌ Segmentation Error: No clean chunks.")
+                                st.error("❌ Segmentation Error: No clean chunks extracted.")
                         else:
                             st.error("❌ Loader Failure: Document text unreadable.")
                     except Exception as pipeline_err:
@@ -86,6 +84,9 @@ with st.sidebar:
                     finally:
                         if os.path.exists(tmp_filepath):
                             os.remove(tmp_filepath)
+        else:
+            # Show a clean, non-blocking informational caption inside the sidebar instead of a harsh warning banner
+            st.caption(f"ℹ️ `{uploaded_file.name}` is active in the repository vector space.")
 
     if st.button("Purge Entire Knowledge Base Storage"):
         import shutil

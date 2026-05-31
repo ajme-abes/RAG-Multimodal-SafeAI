@@ -1,103 +1,129 @@
 # ⚙️ Enterprise RAG System — Chat with PDF
 
-A production-grade **Retrieval-Augmented Generation (RAG)** pipeline that lets you upload any PDF and have a grounded, citation-backed conversation with its contents. Built with a modular architecture, multi-LLM fallback chain, and a Streamlit UI.
+A production-grade **Retrieval-Augmented Generation (RAG)** pipeline that allows users to upload multiple PDFs and hold grounded, conversational, citation-backed interactions with their contents. Built with a highly modular architecture, a real-time stream validation engine, a multi-LLM resilient fallback chain, and an interactive Streamlit UI dashboard.
+
+![Main App Dashboard](../assets/image.png)
 
 ---
 
 ## 📌 Project Overview
 
-Most LLMs hallucinate when asked about private or domain-specific documents. This system solves that by retrieving the most semantically relevant chunks from your document first, then grounding the LLM's answer strictly within that retrieved context — no guessing, no fabrication.
+Most LLMs hallucinate or return generic answers when questioned about private or domain-specific documentation. This system solves that problem through a structured sequence: it compresses conversational context window queries into search terms, retrieves the most semantically relevant chunks from a persistent vector index, filters them mathematically based on geometric distance thresholds, and grounds the active model's response strictly within that context.
 
-Upload a PDF → ask questions → get precise answers with page-level citations.
+Upload multiple PDFs ➔ ask questions ➔ get real-time streaming answers complete with page-level citations and mathematical validation metrics.
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture & Operational Workflow
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│                        USER (Streamlit UI)                  │
+│                       USER (Streamlit UI)                   │
 └──────────────────────────┬──────────────────────────────────┘
-                           │  Upload PDF + Ask Question
+                           │  Upload Multiple PDFs + Chat
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  INGESTION PIPELINE                                         │
 │                                                             │
-│  loader.py          chunker.py          embedding.py        │
-│  ┌──────────┐      ┌──────────┐        ┌──────────────┐    │
-│  │ Extract  │ ───► │  NLTK    │ ──────► │ all-MiniLM   │    │
-│  │ & Clean  │      │ Sentence │        │ -L6-v2       │    │
-│  │ PDF Text │      │ Splitter │        │ (HuggingFace)│    │
-│  └──────────┘      └──────────┘        └──────┬───────┘    │
+│  loader.py          chunker.py          embeding.py         │
+│  ┌──────────┐      ┌──────────┐        ┌──────────────┐     │
+│  │ Extract  │ ───► │  NLTK    │ ──────►│ all-MiniLM   │     │
+│  │ & Clean  │      │ Sentence │        │ -L6-v2       │     │
+│  │ PDF Text │      │ Splitter │        │ (HuggingFace)│     │
+│  └──────────┘      └──────────┘        └──────┬───────┘     │
 │                                               │             │
 │                                               ▼             │
-│                                    ┌──────────────────┐    │
-│                                    │  vector_store.py │    │
-│                                    │  ChromaDB        │    │
-│                                    │  (Persistent)    │    │
-│                                    └──────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                           │  Query Time
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│  QUERY PIPELINE                                             │
-│                                                             │
-│  retriever.py                    qa_pipeline.py             │
-│  ┌─────────────────────┐        ┌──────────────────────┐   │
-│  │ Similarity Search   │        │ Grounded Prompt      │   │
-│  │ + Distance Filter   │ ──────►│ + Fallback LLM Chain │   │
-│  │ (threshold: 0.80)   │        │                      │   │
-│  └─────────────────────┘        │ 1. Ollama (local)    │   │
-│                                 │ 2. HuggingFace API   │   │
-│                                 │ 3. OpenAI GPT-4o     │   │
-│                                 │ 4. Google Gemini     │   │
-│                                 └──────────────────────┘   │
+│                                    ┌──────────────────┐     │
+│                                    │ vectore_store.py │     │
+│                                    │ ChromaDB Index   │     │
+│                                    │ (Continuous/Disk)│     │
+│                                    └──────────────────┘     │
 └─────────────────────────────────────────────────────────────┘
                            │
                            ▼
-              Answer + Page Citations + Snippets
-```
+┌─────────────────────────────────────────────────────────────┐
+│  CONVERSATIONAL QUERY CONDENSER & TRANSFORMER LAYER         │
+│                                                             │
+│  qa_pipeline.py ➔ condense_user_query()                      │
+│  Transforms user prompt + chat history window into optimal  │
+│  database search keyword vectors (Filters conversational noise)│
+└──────────────────────────┬──────────────────────────────────┘
+                           │ Optimized Keywords Target
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│  RETRIEVAL & GENERATION PIPELINE                            │
+│                                                             │
+│  retriever.py                      qa_pipeline.py           │
+│  ┌─────────────────────┐          ┌───────────────────────┐ │
+│  │ Similarity Search   │          │ Grounded Prompt Core  │ │
+│  │ + Score Metric Calc │ ───────► │ + Token-Probed        │ │
+│  │ (threshold: 0.85)   │          │   Fallback Stream Loop│ │
+│  └─────────────────────┘          │                       │ │
+│                                   │ 1. Ollama (local)     │ │
+│                                   │ 2. HuggingFace Hub    │ │
+│                                   │ 3. OpenAI GPT-4o-mini │ │
+│                                   │ 4. Google Gemini      │ │
+│                                   └───────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+     Live Word Token Stream + Source Citations + Confidence Display
 
 ---
 
 ## ✅ Features
 
-- **PDF Ingestion** — Extracts and cleans text from any digital PDF, page by page
-- **Sentence-Aware Chunking** — Uses NLTK sentence tokenizer to avoid cutting mid-sentence (chunk size: 800, overlap: 150)
-- **Semantic Embeddings** — `all-MiniLM-L6-v2` via HuggingFace for fast, high-quality vector representations
-- **Persistent Vector Store** — ChromaDB stores embeddings locally across sessions
-- **Distance-Filtered Retrieval** — Only chunks with a relevance score ≤ 0.80 are passed to the LLM
-- **Multi-LLM Fallback Chain** — Tries Ollama → HuggingFace → OpenAI → Google Gemini in sequence
-- **Grounded Prompt Design** — LLM is strictly instructed to answer only from retrieved context
-- **Page-Level Citations** — Every answer includes source file, page number, distance score, and a text snippet
-- **Streamlit Chat UI** — Full conversational interface with chat history and sidebar document control
-- **Chunk Quality Diagnostics** — `inspect_chunk.py` audits broken sentences and short chunks
+- **Multi-Document Appending Matrix** — Upload and read several documents consecutively without wiping older context out of the vector database index
+- **Persistent State Tracker** — Detects duplicate data files via the Streamlit UI to avoid redundant vector embedding transformations
+- **Conversational Memory Query Rewriting** — Compiles recent context windows to extract semantic search keywords, filtering out conversational filler like "what is" or "tell me about"
+- **Sentence-Aware Token Chunking** — Employs NLTK tokenizers to process documents along natural sentence structures (chunk size: 800 tokens, overlap: 150 tokens)
+- **Distance-Filtered Retrieval Guard** — Rejects irrelevant background context chunks that fall outside the configured mathematical distance threshold
+- **Grounded System Prompt Architecture** — Instructs models to restrict responses to the source material and return an explicit fallback text if the query is unanswerable from the context
+- **Token-Probed Multi-LLM Cascading Fallback Chain** — Routes traffic down a secure pipeline (Ollama ➔ Hugging Face ➔ OpenAI ➔ Google Gemini). The pipeline probes the stream's first token to capture errors (like 429 rate limits or quota issues) instantly, falling back automatically without crashing the user interface
+- **Real-Time Stream Rendering** — Displays text generation token-by-token directly inside the chat workspace
+- **Source Citation Analytics** — Expands detailed source dropdown cards detailing the document origin name, target page location, raw vector distance score, and precise text snippet matching
+- **Dynamic Retrieval Confidence Scoring** — Translates database Euclidean distance calculations into a user-friendly percentage rating on the dashboard interface
+
+
+---
+
+## 🖼️ User Interface Captures
+
+### 1. Ingestion Control Centre
+Manages document loading buffers and tracking indexes inside the active sidebar database monitor.
+
+### 2. Live Conversational Streaming Engine
+Displays text generation token-by-token using the optimized multi-vendor routing stack.
+
+### 3. Source Citations & Retrieval Confidence Scoring Metrics
+Translates raw distance metrics into analytical confidence scores and includes page-level citations.
 
 ---
 
 ## 🛠️ Tech Stack
 
-| Layer | Technology |
-|---|---|
-| UI | Streamlit |
-| PDF Parsing | pypdf |
-| Text Chunking | LangChain + NLTK |
-| Embeddings | HuggingFace `all-MiniLM-L6-v2` via `sentence-transformers` |
-| Vector Database | ChromaDB (persistent local) |
-| LLM — Local | Ollama (llama3) |
-| LLM — Cloud | OpenAI GPT-4o-mini, Google Gemini 2.5 Flash, HuggingFace Inference API |
-| Environment | python-dotenv |
-| Language | Python 3.10+ |
+| Layer                     | Technology                                                                                     |
+|----------------------------|-----------------------------------------------------------------------------------------------|
+| **Frontend Framework**     | Streamlit                                                                                     |
+| **PDF Extraction Engine**  | pypdf                                                                                         |
+| **Segmentation Layer**     | LangChain Text Splitters + NLTK Tokenizers                                                    |
+| **Embedding Matrix**       | HuggingFace `all-MiniLM-L6-v2` via sentence-transformers                                      |
+| **Vector Index Database**  | ChromaDB (Persistent Local Storage Architecture)                                              |
+| **Local LLM Client**       | Ollama Engine Instance (llama3 / llama3.2)                                                    |
+| **Cloud LLM Providers**    | OpenAI API (`gpt-4o-mini`), Google GenAI SDK (`gemini-2.5-flash`), Hugging Face Inference API |
+| **Environment Control**    | python-dotenv                                                                                 |
+| **Language Profile**       | Python 3.10+ / 3.12                                                                           |
 
 ---
 
 ## 📦 Installation
 
-**1. Clone the repository**
-```bash
-git clone https://github.com/ajme-abes/RAG-Multimodal-SafeAI.git
-cd your-repo/rag-system
-```
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/ajme-abes/RAG-Multimodal-SafeAI.git
+   cd RAG-Multimodal-SafeAI/rag-system
+
+
 
 **2. Create and activate a virtual environment**
 ```bash
@@ -124,10 +150,9 @@ GOOGLE_API_KEY=your_google_key_here
 HF_API_KEY=your_huggingface_key_here
 ```
 
-> At least one API key is required. If you have Ollama installed locally, no key is needed for basic usage.
+> Note: At least one cloud vendor API credential key or a running local instance of Ollama is required for inference processing.
 
-**5. (Optional) Install Ollama for local inference**
-
+**5. Set up local inference models (Optional)**
 Download from [ollama.com](https://ollama.com) then pull the model:
 ```bash
 ollama pull llama3
@@ -135,9 +160,9 @@ ollama pull llama3
 
 ---
 
-## 🚀 Usage
+## 🚀 Usage Guide
 
-**Run the Streamlit app**
+**Launching the Dashboard Web UI Application**
 ```bash
 cd rag-system/app
 streamlit run app.py
@@ -154,8 +179,14 @@ Then:
 cd rag-system/app
 python main.py
 ```
+**Running the Terminal Command Line Interface Core** 
+```bash
+python rag-system/test/inspect_chunk.py
+cd rag-system/app
+python main.py
+```
 
-**Run diagnostic tools**
+**Running Pipeline Integrity Diagnostics**
 ```bash
 # Inspect chunk quality
 python rag-system/test/inspect_chunk.py
@@ -171,48 +202,69 @@ python rag-system/test/test_search.py
 ```
 rag-system/
 ├── app/
-│   ├── app.py              # Streamlit UI — main entry point
-│   ├── main.py             # CLI pipeline runner
-│   ├── loader.py           # PDF extraction & text cleaning
-│   ├── chunker.py          # NLTK sentence-aware text splitting
-│   ├── embeding.py         # HuggingFace embedding model loader
-│   ├── vectore_store.py    # ChromaDB vector store management
-│   ├── retriever.py        # Similarity search with distance filtering
-│   └── qa_pipeline.py      # Prompt construction + multi-LLM fallback
+│   ├── app.py             # Streamlit Application Workspace Entrypoint
+│   ├── main.py            # Local command line CLI system orchestration loop
+│   ├── loader.py          # PDF text extraction and character normalizing
+│   ├── chunker.py         # NLTK sentence boundary segmentation engine
+│   ├── embeding.py        # HuggingFace dense vector conversion manager
+│   ├── vectore_store.py   # ChromaDB transaction and persistence handlers
+│   ├── retriever.py       # Geometric similarity matching and score filtering
+│   └── qa_pipeline.py     # Prompt grounding construction + cascading stream fallback routing
+├── assets/
+│   ├── image.png          # Dashboard layout overview capture
+│   ├── image_pdfup.png    # Ingestion tracking system window screenshot
+│   ├── image_scor.png     # Evaluation score components screenshot
+│   └── image_chat.png     # Active conversational response capture
 ├── data/
-│   └── ArtificiaL_.pdf     # Sample test document
+│   └── ArtificiaL_.pdf    # Sample testing asset document
 ├── test/
-│   ├── inspect_chunk.py    # Chunk quality auditor
-│   ├── test_search.py      # Semantic search integration test
-│   └── testdb_load.py      # ChromaDB connection test
+│   ├── inspect_chunk.py   # Segmentation output formatting auditor
+│   ├── test_search.py     # Database index semantic matching integrity tool
+│   └── testdb_load.py     # Persistent disk read/write operational verification test
 ├── notebooks/
-│   └── chunk_inspect.ipynb # Jupyter chunk inspection notebook
-├── requirements.txt
-└── README.md
+│   └── chunk_inspect.ipynb# Visual parsing inspection workspace
+├── requirements.txt       # Production dependency pinning profile
+└── README.md              # Project documentation profile
 ```
 
 ---
 
-## 🖼️ Screenshots
+## 🖼️ Interface Walkthrough
 
-> _Add screenshots here after running the app._
->
-> Suggested captures:
-> - Sidebar with uploaded PDF and success message
-> - Chat interface with a question and answer
-> - Citation expander showing page snippet and distance score
+### 1. Main Dashboard Overview
+The main entry point showing the full layout of the system interface.
+
+![Main App Dashboard](../assets/image.png)
 
 ---
 
+### 2. Document Ingestion Panel
+Tracks uploaded files and ensures duplicates are not processed twice.
+
+![Document Ingestion Panel](../assets/image_pdfup.png)
+
+---
+
+### 3. Active Conversational Response
+Streaming engine routes text token‑by‑token using local or cloud fallback models.
+
+![Conversational Chat Interface](../assets/image_chat.png)
+
+---
+
+### 4. Metrics and Citation Expanders
+Custom calculation block translates raw Euclidean vector distances into a clean confidence percentage, complete with document page numbers.
+
+![Metrics and Citation Expanders](../assets/image_scor.png)
+
+
 ## 🔮 Future Improvements
 
-- [ ] **Conversation Memory** — Pass recent chat history into the prompt so the LLM understands follow-up questions
-- [ ] **Streaming Responses** — Stream LLM tokens to the UI in real-time instead of waiting for the full response
-- [ ] **Multi-Document Support** — Query across multiple uploaded PDFs simultaneously without wiping the vector store
-- [ ] **Confidence Gate** — Block LLM response entirely when best retrieval score exceeds threshold (prevent hallucination on off-topic queries)
 - [ ] **Cross-Encoder Reranking** — Use a `cross-encoder/ms-marco-MiniLM` model to rerank retrieved chunks before LLM generation
 - [ ] **OCR Fallback** — Handle scanned PDFs using `pytesseract` or `pymupdf` when `pypdf` returns empty text
 - [ ] **FastAPI Backend** — Expose the pipeline as a REST API for integration with other services
-- [ ] **Docker Deployment** — Containerize the full stack for one-command deployment anywhere
-- [ ] **RAG Evaluation** — Integrate `ragas` library to score faithfulness, answer relevancy, and context recall
-- [ ] **Async Embedding** — Parallelize chunk embedding for faster ingestion of large documents
+- [ ] **Docker Deployment** — Containerize the full stack with a multi-stage Dockerfile for cloud scaling
+- [ ] **RAG Evaluation** — Integrate `ragas` toolkit to benchmark faithfulness, semantic relevancy, and context recall accuracy
+
+
+
