@@ -28,22 +28,36 @@ if "vector_store" not in st.session_state:
     st.session_state.vector_store = None
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
-if "processed_filename" not in st.session_state:
-    st.session_state.processed_filename = ""
+if "uploaded_documents_list" not in st.session_state:
+    st.session_state.uploaded_documents_list = []
 
 # Sidebar Ingestion Layout Panel
 with st.sidebar:
-    st.header("📂 Document Control Center")
-    uploaded_file = st.file_uploader("Upload Target System Manual (PDF)", type=["pdf"])
+    st.header("📂 Multi-Doc Knowledge base")
+    
+    # Clear visual status check of active knowledge repositories
+    if st.session_state.uploaded_documents_list:
+        st.markdown("### 📚 Active Indexed Files:")
+        for doc_name in st.session_state.uploaded_documents_list:
+            st.caption(f"✅ `{doc_name}`")
+        st.markdown("---")
+    else:
+        st.info("No documents uploaded yet. Database workspace is empty.")
+
+    uploaded_file = st.file_uploader("Upload a System Manual (PDF)", type=["pdf"])
     
     if uploaded_file:
-        if st.session_state.processed_filename != uploaded_file.name:
-            with st.spinner("Executing document parsing, text normalization, and vectorization layers..."):
-                
-                # Check for zero-byte empty uploads
+        # Check if this exact file name has already been processed into the index
+        if uploaded_file.name in st.session_state.uploaded_documents_list:
+            st.warning(f"⚠️ `{uploaded_file.name}` is already indexed inside the knowledge base storage.")
+        else:
+            with st.spinner(f"Vectorizing and appending `{uploaded_file.name}`..."):
                 if uploaded_file.size == 0:
-                    st.error("❌ Ingestion Rejected: The uploaded file is completely empty (0 bytes).")
+                    st.error("❌ Ingestion Rejected: Empty file.")
                 else:
+                    from tempfile import NamedTemporaryFile
+                    import os
+                    
                     with NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
                         tmp_file.write(uploaded_file.getvalue())
                         tmp_filepath = tmp_file.name
@@ -55,25 +69,43 @@ with st.sidebar:
                             chunks, metadatas = chunk_clean_text(pages_data, uploaded_file.name)
                             
                             if chunks:
+                                # Appends data cleanly to the existing database index matrix
                                 st.session_state.vector_store = create_vector_store(
                                     chunks, metadatas, embedding_model
                                 )
-                                st.session_state.processed_filename = uploaded_file.name
-                                st.success(f"Successfully processed {len(chunks)} chunks!")
+                                # Add the newly completed file name to our sidebar list display
+                                st.session_state.uploaded_documents_list.append(uploaded_file.name)
+                                st.success(f"Appended {len(chunks)} chunks successfully!")
+                                st.rerun() # Rerun UI layout to update the checklist immediately
                             else:
-                                st.error("❌ Segmentation Error: No valid string segments could be broken out from the document text.")
+                                st.error("❌ Segmentation Error: No clean chunks.")
                         else:
-                            st.error("❌ Loader Failure: The uploaded file contains zero digital text elements. It might be a scanned image or restricted by security passwords.")
+                            st.error("❌ Loader Failure: Document text unreadable.")
                     except Exception as pipeline_err:
-                        st.error(f"🚨 Pipeline Ingestion Exception: An unexpected error occurred while parsing: {pipeline_err}")
+                        st.error(f"🚨 Pipeline Ingestion Exception: {pipeline_err}")
                     finally:
                         if os.path.exists(tmp_filepath):
                             os.remove(tmp_filepath)
 
-    if st.button("Reset App Core Tables"):
+    if st.button("Purge Entire Knowledge Base Storage"):
+        import shutil
+        import os
+        
+        # 1. Physically delete the underlying vector files from the disk
+        if os.path.exists("./chroma_db"):
+            try:
+                shutil.rmtree("./chroma_db")
+                print("🗑️ Database directory wiped successfully.")
+            except Exception as e:
+                print(f"Error deleting database files: {e}")
+                
         st.session_state.chat_history = []
         st.session_state.vector_store = None
-        st.session_state.processed_filename = ""
+        st.session_state.uploaded_documents_list = [] # Resets the name list back to empty!
+        
+        st.success("Database and session variables fully wiped!")
+        
+        # 3. Force a complete script rerun to clean up the interface immediately
         st.rerun()
 
 # Conversational Interface Section
@@ -104,28 +136,53 @@ if user_input := st.chat_input("Ask a question about your knowledge base..."):
                 st.warning(err_msg)
                 st.session_state.chat_history.append({"role": "assistant", "content": err_msg, "citations": []})
             else:
-                with st.spinner("🔍 Querying Vector Database & Generating Structured Answer..."):
-                    try:
-                        answer, citations = execute_query_pipeline(
-                            st.session_state.vector_store,
-                            user_input,
-                            chat_history=st.session_state.chat_history)
-                        
-                        st.markdown("### 📑 Answer:")
-                        st.markdown(answer)
-                        
-                        if citations:
-                            st.markdown("### 📄 Sources:")
-                            for cit in citations:
-                                st.markdown(f"- **File:** `{cit['source']}` | **Page:** `{cit['page']}` *(Distance Score: {cit['score']})*")
-                                with st.expander(f"➔ View Snippet from Page {cit['page']}"):
-                                    st.info(f'"{cit["text"]}"')
+                st.markdown("### 📑 Answer:")
+                answer_container = st.empty()
+                
+                with st.spinner("🔍 Retrieving context chunks..."):
+                    pipeline_output, citations, confidence = execute_query_pipeline(
+                        st.session_state.vector_store, 
+                        user_input, 
+                        chat_history=st.session_state.chat_history
+                    )
+                
+                # 2. Resilient Stream Extraction Loop (Handles Gemini, OpenAI, and pure string generators)
+                if hasattr(pipeline_output, "__iter__") and not isinstance(pipeline_output, (str, list)):
+                    
+                    def unified_text_chunk_extractor():
+                        for chunk in pipeline_output:
+                            # Condition A: It's a Gemini Stream Chunk
+                            if hasattr(chunk, "text"):
+                                if chunk.text:
+                                    yield chunk.text
                                     
-                        st.session_state.chat_history.append({
-                            "role": "assistant",
-                            "content": answer,
-                            "citations": citations
-                        })
-                    except Exception as inference_crash:
-                        fatal_msg = f"🚨 Execution Failure: An unrecoverable runtime error occurred inside the generation pipeline: {inference_crash}"
-                        st.error(fatal_msg)
+                            # Condition B: It's an OpenAI Stream Chunk
+                            elif hasattr(chunk, "choices"):
+                                if chunk.choices and chunk.choices[0].delta.content:
+                                    yield chunk.choices[0].delta.content
+                                    
+                            # Condition C: It's a raw string generator token (Ollama / Hugging Face / Custom)
+                            elif isinstance(chunk, str):
+                                yield chunk
+
+                    # Animate the text writing to the screen dynamically in real-time
+                    final_answer = answer_container.write_stream(unified_text_chunk_extractor())
+                else:
+                    # Fallback rendering if a normal static text string was passed back
+                    final_answer = pipeline_output
+                    answer_container.markdown(final_answer)
+                
+                # 3. Render clean enterprise source mapping blocks right beneath the stream
+                if citations:
+                    st.markdown("### 📄 Sources:")
+                    for cit in citations:
+                        st.markdown(f"- **File:** `{cit['source']}` | **Page:** `{cit['page']}` *(Distance Score: {cit['score']})*")
+                        with st.expander(f"➔ View Snippet from Page {cit['page']}"):
+                            st.info(f'"{cit["text"]}"')
+                            
+                # 4. Commit the fully generated answer text string to your chat history logs
+                st.session_state.chat_history.append({
+                    "role": "assistant",
+                    "content": final_answer,
+                    "citations": citations
+                })

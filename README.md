@@ -19,6 +19,7 @@ A structured, end-to-end AI engineering roadmap covering three production-focuse
 ## 🗺️ Project Overview
 
 ### Phase 1 — RAG System ✅ Complete
+
 **`/rag-system`**
 
 A production-grade Retrieval-Augmented Generation pipeline. Upload any PDF and have a grounded, citation-backed conversation with its contents. Features a multi-LLM fallback chain (Ollama → HuggingFace → OpenAI → Google Gemini), persistent ChromaDB vector storage, sentence-aware chunking, and a full Streamlit chat UI.
@@ -28,6 +29,7 @@ A production-grade Retrieval-Augmented Generation pipeline. Upload any PDF and h
 ---
 
 ### Phase 2 — Multimodal Engine 🔧 In Progress
+
 **`/multimodal-engine`**
 
 An AI engine designed to process, analyze, and generate content across multiple data types — text, images, and audio. The core objective is building automated pipelines that link transcription, summarization, and video processing into a single workflow.
@@ -39,6 +41,7 @@ An AI engine designed to process, analyze, and generate content across multiple 
 ---
 
 ### Phase 3 — AI Safety Audit 🔧 In Progress
+
 **`/ai-saftey-audit`**
 
 An alignment and auditing framework for stress-testing LLMs against adversarial inputs. Covers prompt injection defense, bias and fairness auditing, toxicity guardrails, and jailbreak red-teaming.
@@ -90,6 +93,7 @@ An alignment and auditing framework for stress-testing LLMs against adversarial 
 ## ✅ Features by Project
 
 ### RAG System
+
 - PDF text extraction with regex-based cleaning (pypdf)
 - NLTK sentence-aware chunking (no mid-sentence cuts)
 - Semantic embeddings via `all-MiniLM-L6-v2` (HuggingFace)
@@ -101,14 +105,16 @@ An alignment and auditing framework for stress-testing LLMs against adversarial 
 - Full Streamlit chat UI with session state management
 - Chunk quality diagnostic tooling
 
-### Multimodal Engine *(planned)*
+### Multimodal Engine _(planned)_
+
 - Audio transcription via OpenAI Whisper
 - LLM-powered content summarization
 - Automated video timeline slicing
 - Cross-modal search (text query → image/video results)
 - Unified API for vision and language models
 
-### AI Safety Audit *(planned)*
+### AI Safety Audit _(planned)_
+
 - Prompt injection detection and filtering
 - Automated bias and fairness test suites
 - Toxicity evaluation layer
@@ -119,32 +125,34 @@ An alignment and auditing framework for stress-testing LLMs against adversarial 
 
 ## 🛠️ Tech Stack
 
-| Category | Technologies |
-|---|---|
-| Language | Python 3.10+ |
-| UI | Streamlit |
-| LLM — Local | Ollama (llama3) |
-| LLM — Cloud | OpenAI GPT-4o-mini, Google Gemini 2.5 Flash |
-| Embeddings | HuggingFace `sentence-transformers` (`all-MiniLM-L6-v2`) |
-| Vector DB | ChromaDB |
-| PDF Parsing | pypdf |
-| Text Splitting | LangChain, NLTK |
-| Audio/Video | OpenAI Whisper *(Phase 2)* |
-| Safety/Eval | Custom framework + `ragas` *(Phase 3)* |
-| Environment | python-dotenv |
-| Security | cryptography, pyjwt |
+| Category       | Technologies                                             |
+| -------------- | -------------------------------------------------------- |
+| Language       | Python 3.10+                                             |
+| UI             | Streamlit                                                |
+| LLM — Local    | Ollama (llama3)                                          |
+| LLM — Cloud    | OpenAI GPT-4o-mini, Google Gemini 2.5 Flash              |
+| Embeddings     | HuggingFace `sentence-transformers` (`all-MiniLM-L6-v2`) |
+| Vector DB      | ChromaDB                                                 |
+| PDF Parsing    | pypdf                                                    |
+| Text Splitting | LangChain, NLTK                                          |
+| Audio/Video    | OpenAI Whisper _(Phase 2)_                               |
+| Safety/Eval    | Custom framework + `ragas` _(Phase 3)_                   |
+| Environment    | python-dotenv                                            |
+| Security       | cryptography, pyjwt                                      |
 
 ---
 
 ## 📦 Installation
 
 **1. Clone the repository**
+
 ```bash
-git clone https://github.com/your-username/your-repo.git
+git clone https://github.com/ajme-abes/RAG-Multimodal-SafeAI.git
 cd your-repo
 ```
 
 **2. Create and activate a virtual environment**
+
 ```bash
 python -m venv venv
 
@@ -156,6 +164,7 @@ source venv/bin/activate
 ```
 
 **3. Install shared dependencies**
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -163,6 +172,7 @@ pip install -r requirements.txt
 **4. Set up environment variables**
 
 Create a `.env` file in the root directory:
+
 ```env
 OPENAI_API_KEY=your_openai_key_here
 GOOGLE_API_KEY=your_google_key_here
@@ -174,6 +184,7 @@ HF_API_KEY=your_huggingface_key_here
 ## 🚀 Usage
 
 ### Run the RAG System
+
 ```bash
 cd rag-system/app
 streamlit run app.py
@@ -182,6 +193,7 @@ streamlit run app.py
 See [`rag-system/README.md`](./rag-system/README.md) for full setup and usage details.
 
 ### Run Diagnostic Tests
+
 ```bash
 # Chunk quality audit
 python rag-system/test/inspect_chunk.py
@@ -208,6 +220,7 @@ python rag-system/test/testdb_load.py
 ## 📈 Roadmap
 
 ### Phase 1 — RAG System
+
 - [x] PDF loader with text cleaning
 - [x] NLTK sentence-aware chunker
 - [x] HuggingFace embedding model
@@ -224,6 +237,7 @@ python rag-system/test/testdb_load.py
 - [ ] Docker deployment
 
 ### Phase 2 — Multimodal Engine
+
 - [ ] Whisper audio transcription
 - [ ] LLM summarization pipeline
 - [ ] Video clip extraction
@@ -231,6 +245,7 @@ python rag-system/test/testdb_load.py
 - [ ] Cross-modal search API
 
 ### Phase 3 — AI Safety Audit
+
 - [ ] Prompt injection test suite
 - [ ] Bias and fairness scanner
 - [ ] Toxicity guardrail layer
