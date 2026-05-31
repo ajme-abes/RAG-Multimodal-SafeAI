@@ -2,7 +2,7 @@
 
 A production-grade **Retrieval-Augmented Generation (RAG)** pipeline that allows users to upload multiple PDFs and hold grounded, conversational, citation-backed interactions with their contents. Built with a highly modular architecture, a real-time stream validation engine, a multi-LLM resilient fallback chain, and an interactive Streamlit UI dashboard.
 
-![Main App Dashboard](../assets/image.png)
+![Main App Dashboard](assets/image.png)
 
 ---
 
@@ -68,7 +68,7 @@ Upload multiple PDFs ➔ ask questions ➔ get real-time streaming answers compl
                            │
                            ▼
      Live Word Token Stream + Source Citations + Confidence Display
-
+```
 ---
 
 ## ✅ Features
@@ -234,28 +234,28 @@ rag-system/
 ### 1. Main Dashboard Overview
 The main entry point showing the full layout of the system interface.
 
-![Main App Dashboard](../assets/image.png)
+![Main App Dashboard](assets/image.png)
 
 ---
 
 ### 2. Document Ingestion Panel
 Tracks uploaded files and ensures duplicates are not processed twice.
 
-![Document Ingestion Panel](../assets/image_pdfup.png)
+![Document Ingestion Panel](assets/image_pdfup.png)
 
 ---
 
 ### 3. Active Conversational Response
 Streaming engine routes text token‑by‑token using local or cloud fallback models.
 
-![Conversational Chat Interface](../assets/image_chat.png)
+![Conversational Chat Interface](assets/image_chat.png)
 
 ---
 
 ### 4. Metrics and Citation Expanders
 Custom calculation block translates raw Euclidean vector distances into a clean confidence percentage, complete with document page numbers.
 
-![Metrics and Citation Expanders](../assets/image_scor.png)
+![Metrics and Citation Expanders](assets/image_scor.png)
 
 
 ## 🔮 Future Improvements
