@@ -11,7 +11,10 @@ A structured, end-to-end AI engineering roadmap covering three production-focuse
 ├── multimodal-engine/   # Phase 2 — AI Reel Generator (Multimodal)
 ├── ai-saftey-audit/     # Phase 3 — Safety & Bias Evaluation Toolkit
 ├── requirements.txt     # Shared top-level dependencies
+├── .env
+├── .gitignore
 └── README.md
+
 ```
 
 ---
@@ -24,14 +27,15 @@ A structured, end-to-end AI engineering roadmap covering three production-focuse
 
 A production-grade Retrieval-Augmented Generation pipeline. Upload any PDF and have a grounded, citation-backed conversation with its contents. Features a multi-LLM fallback chain (Ollama → HuggingFace → OpenAI → Google Gemini), persistent ChromaDB vector storage, sentence-aware chunking, and a full Streamlit chat UI.
 
-**Status:** Fully functional with Streamlit UI, CLI runner, and diagnostic test suite.
+🔗 **Live Demo:** [ragsystem-chatpadf.streamlit.app](https://ragsystem-chatpadf.streamlit.app/)
+
+**Status:** Fully functional — live deployed on Streamlit Cloud with UI, CLI runner, and diagnostic test suite.
 
 ---
 
 ### Phase 2 — Multimodal Engine 🔧 In Progress
 
 **`/multimodal-engine`**
-
 An AI engine designed to process, analyze, and generate content across multiple data types — text, images, and audio. The core objective is building automated pipelines that link transcription, summarization, and video processing into a single workflow.
 
 **Planned Deliverable:** AI Reel Generator — takes long-form video/audio, transcribes it, identifies key moments, and outputs a short-form highlight reel.
@@ -209,11 +213,13 @@ python rag-system/test/testdb_load.py
 
 ## 🖼️ Screenshots
 
-> _Screenshots will be added as each phase is completed._
->
-> **RAG System** — Streamlit chat UI with PDF upload, Q&A, and citation panel  
-> **Multimodal Engine** — Video input → transcript → reel output workflow  
-> **AI Safety Audit** — Red-team test results and bias audit report
+**RAG System** — Live at [ragsystem-chatpadf.streamlit.app](https://ragsystem-chatpadf.streamlit.app/)
+
+| Dashboard | Document Ingestion | Chat + Citations |
+|---|---|---|
+| ![Dashboard](rag-system/assets/image.png) | ![Ingestion](rag-system/assets/image_pdfup.png) | ![Chat](rag-system/assets/image_chat.png) |
+
+> **Multimodal Engine** and **AI Safety Audit** screenshots will be added as each phase ships.
 
 ---
 
@@ -228,10 +234,10 @@ python rag-system/test/testdb_load.py
 - [x] Distance-filtered retriever
 - [x] Multi-LLM fallback chain (Ollama / HF / OpenAI / Gemini)
 - [x] Streamlit chat UI with citations
-- [ ] Conversation memory (chat history in prompt)
-- [ ] Streaming LLM responses
-- [ ] Multi-document support
-- [ ] Confidence gate (block hallucination on off-topic queries)
+- [x] Conversation memory (chat history in prompt)
+- [x] Streaming LLM responses
+- [x] Multi-document support
+- [x] Confidence gate (block hallucination on off-topic queries)
 - [ ] Cross-encoder reranking
 - [ ] FastAPI backend
 - [ ] Docker deployment

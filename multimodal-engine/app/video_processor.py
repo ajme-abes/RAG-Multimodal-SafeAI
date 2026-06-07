@@ -1,6 +1,7 @@
-import subprocess, os, glob
+import subprocess, os, glob, base64
 from google import genai
 from dotenv import load_dotenv
+from openai import OpenAI
 
 load_dotenv()
 
@@ -35,6 +36,46 @@ def extract_keyframe(video_path, keyframe_output_dir, interval_seconds=5):
     except subprocess.CalledProcessError as e:
         print(f"ffmpeg keyfrmae extrction fsiled")
         raise e
+    
+def encode_image_to_base64(image_path):
+
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode('utf-8')
+    
+def run_openai(frame_path, prompt):
+    print("[Fallback] Routing Visual analysis to Openai")
+
+    try:
+        openai_clinet = OpenAI()
+
+        content_payload = [{"type": "text", "text": prompt}]
+
+        for path in frame_path:
+            base64_image = encode_image_to_base64(path)
+
+            content_payload.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}"
+                    }
+                }
+            ) 
+
+            print("Processing Openai Vission Inference")
+
+            response = openai_clinet.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": content_payload}],
+                max_tokens=1000
+            )
+
+            print("Openai Vission Inference Completed")
+
+            return response.choices[0].message.content
+    except Exception as e:
+        print(f"🚨 Fallback Exception: OpenAI engine also failed. Reason: {e}")
+        return None
     
 
 def analyze_scene_with_gemini(frame_dir):
@@ -76,9 +117,9 @@ def analyze_scene_with_gemini(frame_dir):
             client.files.delete(name=cloud_file.name)
             
         return response.text
-    except Exception as e:
-        print(f"Vission Infrenec as {e}")
-        return None
+    except Exception as gemin_error:
+        print(f"🚨 Fallback Exception: Gemini engine also failed. Reason: {gemin_error}")
+        return run_openai(frame_path, prompt)
 
 
 if __name__ == "__main__":

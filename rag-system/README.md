@@ -1,6 +1,13 @@
 # ⚙️ Enterprise RAG System — Chat with PDF
 
+[![Live Demo](https://img.shields.io/badge/🚀%20Live%20Demo-Streamlit%20Cloud-FF4B4B?style=for-the-badge&logo=streamlit)](https://ragsystem-chatpadf.streamlit.app/)
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![LangChain](https://img.shields.io/badge/LangChain-Framework-1C3C3C?style=for-the-badge)](https://langchain.com)
+[![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector%20Store-orange?style=for-the-badge)](https://trychroma.com)
+
 A production-grade **Retrieval-Augmented Generation (RAG)** pipeline that allows users to upload multiple PDFs and hold grounded, conversational, citation-backed interactions with their contents. Built with a highly modular architecture, a real-time stream validation engine, a multi-LLM resilient fallback chain, and an interactive Streamlit UI dashboard.
+
+> 🔗 **Try it live:** [ragsystem-chatpadf.streamlit.app](https://ragsystem-chatpadf.streamlit.app/)
 
 ![Main App Dashboard](assets/image.png)
 
@@ -84,6 +91,16 @@ Upload multiple PDFs ➔ ask questions ➔ get real-time streaming answers compl
 - **Source Citation Analytics** — Expands detailed source dropdown cards detailing the document origin name, target page location, raw vector distance score, and precise text snippet matching
 - **Dynamic Retrieval Confidence Scoring** — Translates database Euclidean distance calculations into a user-friendly percentage rating on the dashboard interface
 
+
+---
+
+## 🎬 Demo
+
+📺 **Video Walkthrough** — Full pipeline demonstration: PDF upload → chunking → retrieval → streaming answer with citations.
+
+> ▶️ Watch the demo video to see the multi-LLM fallback chain, real-time streaming, and citation panel in action.
+
+🔗 **Live App:** [ragsystem-chatpadf.streamlit.app](https://ragsystem-chatpadf.streamlit.app/)
 
 ---
 
