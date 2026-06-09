@@ -4,7 +4,7 @@ from google import genai
 from openai import OpenAI
 
 from audio_processor import extract_audio_from_video, transcribe_audio, save_transcript_todisk
-from video_processor import extract_keyframe, analyze_scene_with_gemini
+from video_processor import extract_keyframes, analyze_scene_with_gemini
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 load_dotenv()
@@ -77,7 +77,7 @@ def run_integrated_pipeline(video_path):
     
     #phase 2: Visual stream trace
 
-    extract_keyframe(video_path, frames_dir, interval_seconds=5) 
+    extract_keyframes(video_path, frames_dir, interval_seconds=5) 
     visual_breakdown = analyze_scene_with_gemini(frames_dir)
 
     if not visual_breakdown:

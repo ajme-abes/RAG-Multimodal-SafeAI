@@ -5,7 +5,7 @@ from openai import OpenAI
 
 load_dotenv()
 
-def extract_keyframe(video_path, keyframe_output_dir, interval_seconds=5):
+def extract_keyframes(video_path, keyframe_output_dir, interval_seconds=5):
     print(f"[1] Extracting keyframes from video: {video_path}")
 
     if not os.path.exists(keyframe_output_dir):
@@ -130,7 +130,7 @@ if __name__ == "__main__":
         print(f"⚠️ Test Guard: Please ensure your file exists at: {VIDEO_PATH}")
     else:
         # 1. Run frame slicer
-        extract_keyframe(VIDEO_PATH, FRAMES_DIR, interval_seconds=5)
+        extract_keyframes(VIDEO_PATH, FRAMES_DIR, interval_seconds=5)
         
         # 2. Run vision model analysis
         visual_summary = analyze_scene_with_gemini(FRAMES_DIR)
