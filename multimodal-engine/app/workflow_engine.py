@@ -1,48 +1,43 @@
-import os, sys
+import os
+import sys
 from dotenv import load_dotenv
 from google import genai
-from openai import OpenAI
 
-from audio_processor import extract_audio_from_video, transcribe_audio, save_transcript_todisk
-from video_processor import extract_keyframes, analyze_scene_with_gemini
-
+# Setup system environment routing parameters
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 load_dotenv()
 
+# High-precision production component imports
+from audio_processor import extract_audio_from_video, transcribe_audio, save_transcript_todisk, StructuredTranscript
+from video_processor import extract_keyframes, analyze_scene_with_gemini, generate_vertical_reel_clip, ChronologicalVisualTimeline
 
-def generate_production_blog(audio_transcript, visual_breakdown):
 
-    print(f"[3]: Orchastrating final content Synthesis via gemin")
-
+def generate_production_blog(audio_transcript: StructuredTranscript, visual_breakdown: ChronologicalVisualTimeline) -> str:
+    """Synthesizes structured visual mappings and text arrays into a markdown blog post."""
+    print(" [3/4] Orchestrating final multimodal content synthesis via Gemini...")
     client = genai.Client()
 
+    # Pass the serialized clean string models to preserve structural hierarchy inside the token prompt space
     prompt = f"""
-    You are an expert technical content writer and software documentation engineer.
+    You are an expert technical content writer and developer documentation engineer.
     
-    I am providing you with two distinct data inputs extracted from a video tutorial:
-    1. RAW AUDIO TRANSCRIPT:
-    ---
-    {audio_transcript}
-    ---
+    Synthesize these two multimodal timelines into a clear, detailed, step-by-step Technical Blog Post in Markdown:
     
-    2. CHRONOLOGICAL VISUAL BREAKDOWN:
-    ---
-    {visual_breakdown}
-    ---
+    1. TIMESTAMPED AUDIO TRANSCRIPT (JSON Mapping):
+    {audio_transcript.model_dump_json(indent=2)}
     
-    TASK:
-    Synthesize these two inputs into a comprehensive, high-quality, step-by-step Technical Blog Post 
-    written in Markdown. 
+    2. CHRONOLOGICAL VISUAL TIMELINE (JSON Mapping):
+    {visual_breakdown.model_dump_json(indent=2)}
     
     STRUCTURE RULES:
     - Add a catchy title at the top (#).
-    - Write a short introduction explaining what software is being demonstrated.
+    - Write a short introduction explaining what software/concept is being demonstrated.
     - Break the content down into logical step-by-step sections using clear headings (##).
-    - Blend the visual timeline actions smoothly with the spoken words so it reads like a cohesive tutorial.
-    - Highlight specific keyboard shortcuts, timestamps, or interface menus mentioned on screen using code blocks or bold text.
+    - Blend visual timeline actions smoothly with the spoken words so it reads like a cohesive tutorial.
+    - Highlight specific keyboard shortcuts, timestamps, or interface menus using code blocks or bold text.
     - End with a summary conclusion.
     
-    Do not add conversational commentary—return ONLY the markdown content.
+    Do not add conversational commentary—return ONLY the markdown text blocks.
     """
 
     try:
@@ -50,57 +45,83 @@ def generate_production_blog(audio_transcript, visual_breakdown):
             model="gemini-2.5-flash",
             contents=[prompt]
         )
-
         return response.text
     except Exception as e:
-        print(f"Error during content synthesis: {str(e)}")
-        return None
+        print(f"🚨 Synthesis Pipeline Fatal Exception Error: {str(e)}")
+        raise e
 
-def run_integrated_pipeline(video_path):
+def run_integrated_pipeline(video_path: str):
+    """The central orchestration engine running Stage 1 filtering and asset rendering."""
+    print("🚀 ----- Starting Integrated Multimodal Content Generation Pipeline -----")
 
-    print(f"🚀 -----Starting Integrated Multimodal Content Generation Pipeline-----------")
-
-    audio_output_path = "../data/extracted_audio.mp3"
+    # Hardcoded configurations converted to strict, upgraded extensions
+    audio_output_path = "../data/extracted_audio.wav" 
     frames_dir = "../data/extracted_frames"
     blogs_output_path = "../output/how_multimodals_work_blog.md"
+    transcript_json_path = "../data/transcript.json"
 
     if not os.path.exists("../output"):
         os.makedirs("../output")
+    if not os.path.exists("../data"):
+        os.makedirs("../data")
 
-    # phase 1 extracted the audio
+    # -------------------------------------------------------------
+    # PHASE 1: Speech-To-Text Timeline Assembly
+    # -------------------------------------------------------------
     extract_audio_from_video(video_path, audio_output_path)
-    audio_transcript = transcribe_audio(audio_output_path)
-
-    if not audio_transcript:
-        print("Pipeline stopped: audio transcribe layer Faileed")
-        return None
+    audio_transcript: StructuredTranscript = transcribe_audio(audio_output_path)
     
-    #phase 2: Visual stream trace
+    if not audio_transcript:
+        print(" Pipeline stopped: Audio transcription layer extraction violation.")
+        return
 
+    save_transcript_todisk(audio_transcript, transcript_json_path)
+
+    # -------------------------------------------------------------
+    # PHASE 2: Chronological Visual Timeline Assembly
+    # -------------------------------------------------------------
     extract_keyframes(video_path, frames_dir, interval_seconds=5) 
-    visual_breakdown = analyze_scene_with_gemini(frames_dir)
+    visual_breakdown: ChronologicalVisualTimeline = analyze_scene_with_gemini(frames_dir, interval_seconds=5)
 
     if not visual_breakdown:
-        print("Pipeline stopped: visual analysis layer Faileed")
-        return None
-    
-    #phase 3 final Blog synthesis
+        print(" Pipeline stopped: Visual tracking array extraction violation.")
+        return
 
+    # -------------------------------------------------------------
+    # PHASE 3: Content Marketing Synthesis (Long-Form Blog Asset)
+    # -------------------------------------------------------------
     final_blog_content = generate_production_blog(audio_transcript, visual_breakdown)
 
     if final_blog_content:
         with open(blogs_output_path, "w", encoding="utf-8") as f:
             f.write(final_blog_content)
-        print(f"\n System Success Complete multimodal blog post generated at {blogs_output_path}")
-    else:
-        print("Pipeline stopped: final content synthesis layer Faileed")
+        print(f" System Success: Multimodal blog post generated at: {blogs_output_path}")
+    
+    # -------------------------------------------------------------
+    # PHASE 4: Short-Form Reel Extractor (Two-Stage Verification)
+    # -------------------------------------------------------------
+    print(" 🎬 [4/4] Activating Two-Stage Filtering Highlight Detection Routine...")
+    
+    from clip_extractor import stage_1_semantic_filter
+    from reel_generator import stage_2_visual_verification
+
+    # 1. Run the Stage 1 text-based check
+    candidate_clips = stage_1_semantic_filter(audio_transcript, visual_breakdown)
+    
+    # 2. Run the Stage 2 multi-modal verification step
+    verified_clips = stage_2_visual_verification(video_path, candidate_clips)
+    
+    # 3. Render the verified shorts using our 9:16 vertical crop filter
+    for idx, clip in enumerate(verified_clips):
+        reel_path = f"../output/viral_reel_{idx + 1}.mp4"
+        generate_vertical_reel_clip(video_path, clip.start_time, clip.end_time, reel_path)
+
+    print("🏁 Pipeline run completed successfully.")
 
 if __name__ == "__main__":
     TARGET_VIDEO = "../data/sample.mp4"
 
     if not os.path.exists(TARGET_VIDEO):
-        print(f"⚠️ Verification Guard: Please confirm your testing file is ready at: {TARGET_VIDEO}")
+        print(f"⚠️ Verification Guard: Target clip missing at path location: {TARGET_VIDEO}")
     else:
         run_integrated_pipeline(TARGET_VIDEO)
-    
-    

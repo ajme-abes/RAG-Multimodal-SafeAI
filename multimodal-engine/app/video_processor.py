@@ -1,12 +1,27 @@
-import subprocess, os, glob, base64
+import subprocess
+import os
+import glob
+import base64
+from typing import List, Optional
+from pydantic import BaseModel, Field
 from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 from openai import OpenAI
 
 load_dotenv()
 
-def extract_keyframes(video_path, keyframe_output_dir, interval_seconds=5):
-    print(f"[1] Extracting keyframes from video: {video_path}")
+# Strict structures to link visual changes with audio timestamps cleanly
+class VideoFrameMoment(BaseModel):
+    timestamp_seconds: float = Field(description="The timestamp of this keyframe based on its position.")
+    visual_description: str = Field(description="Detailed summary of visual activity, slide content, text onscreen, or facial cues.")
+
+class ChronologicalVisualTimeline(BaseModel):
+    timeline: List[VideoFrameMoment]
+
+def extract_keyframes(video_path: str, keyframe_output_dir: str, interval_seconds: int = 5) -> int:
+    """Extracts high-quality keyframes at precise uniform chronological markers."""
+    print(f"[1] Extracting keyframes from video source: {video_path}")
 
     if not os.path.exists(keyframe_output_dir):
         os.makedirs(keyframe_output_dir)
@@ -14,129 +29,148 @@ def extract_keyframes(video_path, keyframe_output_dir, interval_seconds=5):
         existing_files = glob.glob(os.path.join(keyframe_output_dir, "*.jpg"))
         for f in existing_files:
             os.remove(f)
-    output_pattern = os.path.join(keyframe_output_dir, "keyframe_%04d.jpg")
 
-    fps_filter = f"fps= 1/{interval_seconds}"
+    # Output matches exact time mapping calculations (keyframe_0001 = interval * 1)
+    output_pattern = os.path.join(keyframe_output_dir, "keyframe_%04d.jpg")
+    fps_filter = f"fps=1/{interval_seconds}"
 
     command = [
-        "ffmpeg",
-        "-i", video_path,
+        "ffmpeg", "-i", video_path,
         "-vf", fps_filter,
-        "-q:v", "2",
+        "-q:v", "2", # High quality JPEG setting
         output_pattern
     ]
 
     try:
         subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print(f"Keyframes successfully extracted to: {keyframe_output_dir}")
-
         extracted_counts = len(glob.glob(os.path.join(keyframe_output_dir, "*.jpg")))
-        print(f"DownSappling total generated: {extracted_counts}")
+        print(f" Downsampling completed. Generated {extracted_counts} chronological snapshots.")
         return extracted_counts
     except subprocess.CalledProcessError as e:
-        print(f"ffmpeg keyfrmae extrction fsiled")
+        print("FFmpeg keyframe generation pipeline fatal execution error.")
         raise e
-    
-def encode_image_to_base64(image_path):
 
+def encode_image_to_base64(image_path: str) -> str:
+    """Encodes structural image data to base64 for fallback processing models."""
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
-    
-def run_openai(frame_path, prompt):
-    print("[Fallback] Routing Visual analysis to Openai")
 
+def run_openai_fallback(frame_paths: List[str], prompt: str) -> Optional[str]:
+    """Corrected Fallback Engine: Packages frames simultaneously into one context payload."""
+    print("[Fallback] Routing Multi-Modal Visual analysis to OpenAI...")
     try:
-        openai_clinet = OpenAI()
-
+        openai_client = OpenAI()
         content_payload = [{"type": "text", "text": prompt}]
 
-        for path in frame_path:
+        # Append all frames into a single payload to analyze the sequence together
+        for path in frame_paths:
             base64_image = encode_image_to_base64(path)
+            content_payload.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+            })
 
-            content_payload.append(
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{base64_image}"
-                    }
-                }
-            ) 
-
-            print("Processing Openai Vission Inference")
-
-            response = openai_clinet.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": content_payload}],
-                max_tokens=1000
-            )
-
-            print("Openai Vission Inference Completed")
-
-            return response.choices[0].message.content
+        response = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": content_payload}],
+            max_tokens=1500
+        )
+        print(" OpenAI Vision Processing execution step succeeded.")
+        return response.choices[0].message.content
     except Exception as e:
-        print(f"🚨 Fallback Exception: OpenAI engine also failed. Reason: {e}")
+        print(f"🚨 Critical Failure: OpenAI Fallback failed. Reason: {e}")
         return None
-    
 
-def analyze_scene_with_gemini(frame_dir):
-    print(f"[2] Initializing visaula analyzing")
+def analyze_scene_with_gemini(frame_dir: str, interval_seconds: int = 5) -> Optional[ChronologicalVisualTimeline]:
+    """Uploads sequential frames and converts them into structured visual data arrays."""
+    print(f"[2] Initiating visual narrative analysis out of directory: {frame_dir}")
     client = genai.Client()
 
-    frame_path = sorted(glob.glob(os.path.join(frame_dir, "*.jpg")))
-
-    if not frame_dir:
-        print(f"no frame")
+    frame_paths = sorted(glob.glob(os.path.join(frame_dir, "*.jpg")))
+    if not frame_paths:
+        print(" Empty frame directory provided. Aborting execution step.")
         return None
-    
+
     frame_uploaded = []
     try:
-        print(f"uploading {len(frame_path)} frame to clod analyze")
-        for path in frame_path:
+        print(f"Streaming {len(frame_paths)} temporal frames to GenAI Cloud Asset Manager...")
+        for path in frame_paths:
             upload_frame = client.files.upload(file=path)
             frame_uploaded.append(upload_frame)
 
-        print("all visual frame are Sucessfuly in the cloud")
-
-        prompt = """
-        You are an expert video analysis system. You are given a sequential list of image frames extracted 
-        from a video at an interval of every 5 seconds.
+        prompt = f"""
+        You are an expert multi-modal context engine. You are looking at image frames extracted in sequence 
+        exactly every {interval_seconds} seconds.
         
-        Analyze these frames chronologically and write a highly descriptive breakdown summarizing what is 
-        visually happening on screen. Focus on slide changes, screen displays, objects, text captions, or 
-        human actions. Format your response into short, bulleted timeline chapters.
+        Generate a chronological timeline matching every frame to its real timeline position. Calculate 
+        timestamp_seconds accurately. For frame_0001, timestamp_seconds is {interval_seconds * 1}. For 
+        frame_0002, it is {interval_seconds * 2}, and so on.
+        Describe any visual changes, on-screen slide text, speaker facial actions, or object tracking details.
         """
-        
-        print("🤖 Processing Vision-LLM inference (Analyzing images)...")
+
         response = client.models.generate_content(
             model="gemini-2.5-flash",
-            contents=frame_uploaded + [prompt]
+            contents=frame_uploaded + [prompt],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=ChronologicalVisualTimeline,
+                temperature=0.1
+            ),
         )
-        
-        print("🗑️ Scrubbing visual file references from cloud memory storage...")
-        for cloud_file in frame_uploaded:
-            client.files.delete(name=cloud_file.name)
-            
-        return response.text
-    except Exception as gemin_error:
-        print(f"🚨 Fallback Exception: Gemini engine also failed. Reason: {gemin_error}")
-        return run_openai(frame_path, prompt)
+        return response.parsed
+    except Exception as gemini_error:
+        print(f"🚨 Primary Gemini Cluster failed. Reason: {gemini_error}")
+        # Build prompt string for fallback handler matching our logic mapping structure
+        fallback_prompt = f"Analyze these frames in sequential order. Provide a visual summary every {interval_seconds} seconds."
+        return run_openai_fallback(frame_paths, fallback_prompt)
+    finally:
+        # Guarantee cleanup loops execute under all load behaviors
+        if frame_uploaded:
+            print("🗑️ Clearing asset instances from Cloud storage buckets...")
+            for cloud_file in frame_uploaded:
+                try:
+                    client.files.delete(name=cloud_file.name)
+                except Exception:
+                    pass
 
+def generate_vertical_reel_clip(video_path: str, start_time: float, end_time: float, output_path: str):
+    """Cuts and crops horizontal 16:9 video source files directly into a 9:16 vertical workspace canvas."""
+    print(f"[3] Slicing and re-centering vertical layout from {start_time}s to {end_time}s")
+    
+    if os.path.exists(output_path):
+        os.remove(output_path)
+
+    # Crop expression calculates center frame slice matching 9:16 proportion parameters
+    crop_filter = "crop=ih*(9/16):ih:(iw-ow)/2:0"
+
+    command = [
+        "ffmpeg", "-y",
+        "-ss", str(start_time),
+        "-to", str(end_time),
+        "-i", video_path,
+        "-vf", crop_filter,
+        "-c:v", "libx264",
+        "-c:a", "aac",
+        "-b:v", "2M", # Clear streaming video bit-rate
+        output_path
+    ]
+
+    try:
+        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print(f" Vertical video successfully rendered to file target: {output_path}")
+    except subprocess.CalledProcessError as e:
+        print(f"FFmpeg render pipeline failed: {e.stderr.decode()}")
+        raise e
 
 if __name__ == "__main__":
     VIDEO_PATH = "../data/sample.mp4"
     FRAMES_DIR = "../data/extracted_frames"
     
     if not os.path.exists(VIDEO_PATH):
-        print(f"⚠️ Test Guard: Please ensure your file exists at: {VIDEO_PATH}")
+        print(f"Test file placeholder missing at: {VIDEO_PATH}")
     else:
-        # 1. Run frame slicer
         extract_keyframes(VIDEO_PATH, FRAMES_DIR, interval_seconds=5)
-        
-        # 2. Run vision model analysis
-        visual_summary = analyze_scene_with_gemini(FRAMES_DIR)
-        
-        if visual_summary:
-            print("\n🤖 --- GEMINI VISUAL BREAKDOWN ---")
-            print(visual_summary)
-            print("----------------------------------")
-
+        timeline_data = analyze_scene_with_gemini(FRAMES_DIR, interval_seconds=5)
+        if timeline_data:
+            print("\n🤖 --- STRUCTURAL CHRONO TIMELINE DATA VERIFIED ---")
+            print(timeline_data)

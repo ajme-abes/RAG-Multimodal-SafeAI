@@ -1,0 +1,7 @@
+data/*.mp4
+data/*.mp3
+data/*.wav
+data/*.avi
+data/extracted_frames
+data/extracted_clips
+data/extracted_real
