@@ -6,6 +6,4 @@ instance/
 *.log
 chroma_db
 rag-system/test/loade.py
-multimodal-engine/data/extracted_frames
-multimodal-engine/data/extracted_clips
-multimodal-engine/data/extracted_real
+

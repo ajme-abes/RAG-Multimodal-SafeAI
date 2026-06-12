@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 # Hook up our high-performance production pipeline assets built over the week
 from audio_processor import StructuredTranscript
 from video_processor import ChronologicalVisualTimeline, generate_vertical_reel_clip
+from utils import retry_with_backoff
 
 load_dotenv()
 
@@ -23,6 +24,8 @@ class ProductionHighlight(BaseModel):
     end_time: float = Field(description="The exact timestamp in absolute seconds where the highlight hook ends.")
     hook_title: str = Field(description="A short, viral, click-ready title headline for the clip description.")
     justification: str = Field(description="A brief explanation detailing why this segment has high information density or virality.")
+    speaker_position: str = Field(description="Where is the main speaker/subject horizontally on screen? Must return exactly 'center', 'left', or 'right'.")
+
 
 class HighlightAnalysisResult(BaseModel):
     """
@@ -70,18 +73,20 @@ def discover_highlights_autonomously(
     
     try:
         print("🤖 Requesting Gemini processing with zero-hallucination Pydantic constraint filters...")
-        
-        # Enforce correct structural configurations using types blocks
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
+
+        def excute_call():
+            return client.models.generate_content(
+                model="gemini-2.5-flash",
             contents=[macro_prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=HighlightAnalysisResult,
                 temperature=0.1, # Keep temperature low to prevent numeric drift
             )
-        )
-        
+
+            )
+        response = retry_with_backoff(excute_call)
+
         # Access the typed object directly using response.parsed to avoid raw json parsing errors
         validated_data: HighlightAnalysisResult = response.parsed
         print(f"✅ Structural layout validation checks cleared. Isolated {len(validated_data.highlights)} entries.")
@@ -95,7 +100,8 @@ def discover_highlights_autonomously(
 def run_autonomous_editing_pipeline(
     video_path: str, 
     audio_transcript: StructuredTranscript, 
-    visual_breakdown: ChronologicalVisualTimeline
+    visual_breakdown: ChronologicalVisualTimeline,
+    layout_style: str
 ) -> bool:
     """
     Iterates over the validated objects array loop and routes timestamps 
@@ -105,39 +111,35 @@ def run_autonomous_editing_pipeline(
     
     # 1. Pull verified numeric markers via our AI engine
     discovered_highlights = discover_highlights_autonomously(audio_transcript, visual_breakdown)
-    
     if not discovered_highlights:
-        print("⚠️ Pipeline Warning: No actionable target coordinates discovered. Aborting edit cycles.")
         return False
         
-    print(f"🎯 Coordinates located for {len(discovered_highlights)} highlights. Commencing automated cutting pipeline...\n")
-    
-    # Create the workspace directories if they do not exist
     os.makedirs("../output/clips", exist_ok=True)
     
-    # 2. Safely loop over objects using dot notation properties
     for index, highlight in enumerate(discovered_highlights):
         print(f"🎬 Processing Clip #{index + 1}: [{highlight.hook_title}]")
-        print(f"💡 AI Justification: {highlight.justification}")
-        
-        # Clean up text characters to build safe, clean folder path names
         safe_title = "".join(c for c in highlight.hook_title if c.isalnum() or c in (' ', '_')).rstrip().replace(' ', '_').lower()
-        
         output_reel = f"../output/clips/auto_reel_{index + 1}_{safe_title}.mp4"
         
-        # 3. Trigger our high-performance vertical cropping workspace engine
+        # Determine the string instruction parameter for FFmpeg
+        # If user picked Blurred Stack, override position and pass "blurred"
+        if "Blurred Stack" in layout_style:
+            chosen_mode = "blurred"
+        else:
+            chosen_mode = highlight.speaker_position # Use 'left', 'center', or 'right' from Gemini
+            
         try:
             generate_vertical_reel_clip(
                 video_path=video_path,
                 start_time=highlight.start_time,
                 end_time=highlight.end_time,
-                output_path=output_reel
+                output_path=output_reel,
+                render_mode=chosen_mode # 🆕 Pass the calculated layout instruction
             )
             print(f"   Saved asset: {output_reel}\n")
         except Exception as cut_err:
-            print(f"   ⚠️ FFmpeg could not compile clip #{index + 1}. Reason: {cut_err}")
+            print(f"   ⚠️ FFmpeg could not compile clip. Reason: {cut_err}")
         
-    print("🏆 ALL VERIFIED REELS RENDERED AUTONOMOUSLY WITH ZERO TIME STRINGS LATENCY OVERHEAD!")
     return True
 
 # =====================================================================

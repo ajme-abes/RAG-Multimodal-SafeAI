@@ -8,6 +8,7 @@ from google import genai
 from google.genai import types
 from dotenv import load_dotenv
 from openai import OpenAI
+from utils import retry_with_backoff
 
 load_dotenv()
 
@@ -108,15 +109,19 @@ def analyze_scene_with_gemini(frame_dir: str, interval_seconds: int = 5) -> Opti
         Describe any visual changes, on-screen slide text, speaker facial actions, or object tracking details.
         """
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=frame_uploaded + [prompt],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=ChronologicalVisualTimeline,
-                temperature=0.1
-            ),
-        )
+        def excute_call():
+            return client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=frame_uploaded + [prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=ChronologicalVisualTimeline,
+                    temperature=0.1
+                ),
+            )
+
+        response = retry_with_backoff(excute_call)
+        print(" Gemini visual analysis execution step succeeded.")
         return response.parsed
     except Exception as gemini_error:
         print(f"🚨 Primary Gemini Cluster failed. Reason: {gemini_error}")
@@ -133,25 +138,42 @@ def analyze_scene_with_gemini(frame_dir: str, interval_seconds: int = 5) -> Opti
                 except Exception:
                     pass
 
-def generate_vertical_reel_clip(video_path: str, start_time: float, end_time: float, output_path: str):
+def generate_vertical_reel_clip(video_path: str, start_time: float, end_time: float, output_path: str, render_mode: str = "center"):
     """Cuts and crops horizontal 16:9 video source files directly into a 9:16 vertical workspace canvas."""
     print(f"[3] Slicing and re-centering vertical layout from {start_time}s to {end_time}s")
     
     if os.path.exists(output_path):
         os.remove(output_path)
 
-    # Crop expression calculates center frame slice matching 9:16 proportion parameters
-    crop_filter = "crop=ih*(9/16):ih:(iw-ow)/2:0"
+
+    if render_mode == "blurred":
+        # Mode A: Dual stacked layers. Keeps full 16:9 tutorial frame completely visible.
+        video_filter_chain = (
+            "split[original][background];"
+            "[background]scale=1080:1920,boxblur=20:10[blurred];"
+            "[original]scale=1080:-1[scaled];"
+            "[blurred][scaled]overlay=(main_w-overlay_w)/2:(main_h-overlay_h)/2"
+        )
+    else:
+        # Mode B: AI Smart Face Crop. Crops to full-screen vertical, framing based on Gemini host insights.
+        if render_mode == "left":
+            x_offset = "0"
+        elif render_mode == "right":
+            x_offset = "iw-ow"
+        else:
+            x_offset = "(iw-ow)/2"
+            
+        video_filter_chain = f"crop=ih*(9/16):ih:{x_offset}:0,scale=1080:1920"
 
     command = [
         "ffmpeg", "-y",
         "-ss", str(start_time),
         "-to", str(end_time),
         "-i", video_path,
-        "-vf", crop_filter,
+        "-vf", video_filter_chain,
         "-c:v", "libx264",
         "-c:a", "aac",
-        "-b:v", "2M", # Clear streaming video bit-rate
+        "-b:v", "2M",
         output_path
     ]
 

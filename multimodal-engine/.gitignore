@@ -5,3 +5,4 @@ data/*.avi
 data/extracted_frames
 data/extracted_clips
 data/extracted_real
+output/clips/*.mp4

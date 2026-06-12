@@ -50,6 +50,13 @@ with st.sidebar:
         help="Capture 1 image frame every X seconds of timeline playback."
     )
     
+    # 🆕 UPGRADE: User choices for dynamic reel layout style
+    reel_style = st.selectbox(
+        "📱 Reel Visual Layout Style",
+        options=["Blurred Stack Mode (Presentation/Code)", "AI Smart Face Crop (Podcast/Vlog)"],
+        help="Choose 'Blurred Stack' to keep the whole screen visible, or 'AI Smart Face Crop' to track the speaker."
+    )
+    
     st.markdown("---")
     if st.button("🗑️ Clear Engine Cache"):
         st.session_state.transcript_obj = None
@@ -109,7 +116,8 @@ if uploaded_video is not None:
             run_autonomous_editing_pipeline(
                 video_path=video_input_path,
                 audio_transcript=st.session_state.transcript_obj,
-                visual_breakdown=st.session_state.visual_breakdown_obj
+                visual_breakdown=st.session_state.visual_breakdown_obj,
+                layout_style=reel_style
             )
             
             status.update(label="Phase 3 Complete: Content Generated & Reels Rendered!", state="complete")

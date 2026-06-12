@@ -3,6 +3,7 @@ import os
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
+from utils import retry_with_backoff
 
 # Import the shared structural schema to fix your Streamlit ImportError
 from models import StructuredTranscript
@@ -52,9 +53,8 @@ def transcribe_audio(audio_file_path) -> StructuredTranscript:
     
     print("🤖 Processing Speech-to-Text structured inference (Waiting for engine response)...")
 
-    try:
-        # Enforcing response_schema locks Gemini into returning exact JSON that satisfies our model
-        response = client.models.generate_content(
+    def excute_call():
+        return client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[upload_audio, prompt],
             config=types.GenerateContentConfig(
@@ -63,14 +63,14 @@ def transcribe_audio(audio_file_path) -> StructuredTranscript:
                 temperature=0.0  # Zero out creativity to force strict transcription accuracy
             ),
         )
-        # Directly returns the parsed Pydantic object structure
+    try: 
+        response = retry_with_backoff(excute_call)
         return response.parsed
         
     except Exception as e:  
         print(f"Critical error during automated transcription: {str(e)}")
         raise e
     finally:
-        # Guarantee cloud file deletion to prevent ongoing storage costs or leaks
         print("Cleaning up GenAI cloud storage bucket items...")
         try:
             client.files.delete(name=upload_audio.name)
@@ -89,8 +89,8 @@ def save_transcript_todisk(transcript_data: StructuredTranscript, output_text_pa
 
 if __name__ == "__main__":
     video_file_path = "../data/sample.mp4"
-    audio_file_path = "../data/extracted_audio.wav"  # Switched to production WAV extension
-    transcript_output_path = "../data/transcript.json"  # Switched to structured JSON database storage
+    audio_file_path = "../data/extracted_audio.wav"  
+    transcript_output_path = "../data/transcript.json"  
 
     if not os.path.exists(video_file_path):
         print(f"Error: Video file not found at path: {video_file_path}")
