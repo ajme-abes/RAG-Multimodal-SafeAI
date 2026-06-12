@@ -9,16 +9,22 @@ from google.genai import types
 from dotenv import load_dotenv
 from openai import OpenAI
 from utils import retry_with_backoff
+from models import ChronologicalVisualTimeline, VideoFrameMoment
 
 load_dotenv()
 
-# Strict structures to link visual changes with audio timestamps cleanly
-class VideoFrameMoment(BaseModel):
-    timestamp_seconds: float = Field(description="The timestamp of this keyframe based on its position.")
-    visual_description: str = Field(description="Detailed summary of visual activity, slide content, text onscreen, or facial cues.")
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(APP_DIR, ".."))
 
-class ChronologicalVisualTimeline(BaseModel):
-    timeline: List[VideoFrameMoment]
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+CLIPS_DIR = os.path.join(OUTPUT_DIR, "clips")
+TEMP_DIR = os.path.join(DATA_DIR, "temp_verification_slices")
+
+# Guarantee that folder path hierarchies exist on disk before invoking downstream tools
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(CLIPS_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 def extract_keyframes(video_path: str, keyframe_output_dir: str, interval_seconds: int = 5) -> int:
     """Extracts high-quality keyframes at precise uniform chronological markers."""
@@ -109,7 +115,7 @@ def analyze_scene_with_gemini(frame_dir: str, interval_seconds: int = 5) -> Opti
         Describe any visual changes, on-screen slide text, speaker facial actions, or object tracking details.
         """
 
-        def excute_call():
+        def execute_call():
             return client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=frame_uploaded + [prompt],
@@ -120,14 +126,23 @@ def analyze_scene_with_gemini(frame_dir: str, interval_seconds: int = 5) -> Opti
                 ),
             )
 
-        response = retry_with_backoff(excute_call)
+        response = retry_with_backoff(execute_call)
         print(" Gemini visual analysis execution step succeeded.")
         return response.parsed
     except Exception as gemini_error:
         print(f"🚨 Primary Gemini Cluster failed. Reason: {gemini_error}")
-        # Build prompt string for fallback handler matching our logic mapping structure
         fallback_prompt = f"Analyze these frames in sequential order. Provide a visual summary every {interval_seconds} seconds."
-        return run_openai_fallback(frame_paths, fallback_prompt)
+        raw_text_fallback = run_openai_fallback(frame_paths, fallback_prompt)
+        
+        from models import ChronologicalVisualTimeline, VideoFrameMoment
+        
+        fallback_desc = raw_text_fallback if raw_text_fallback else "Visual capture processing failure."
+        return ChronologicalVisualTimeline(timeline=[
+            VideoFrameMoment(
+                timestamp_seconds=float(i * interval_seconds),
+                visual_description=f"[OpenAI Fallback Data]: {fallback_desc}"
+            ) for i in range(1, len(frame_paths) + 1)
+        ])
     finally:
         # Guarantee cleanup loops execute under all load behaviors
         if frame_uploaded:
@@ -142,6 +157,17 @@ def generate_vertical_reel_clip(video_path: str, start_time: float, end_time: fl
     """Cuts and crops horizontal 16:9 video source files directly into a 9:16 vertical workspace canvas."""
     print(f"[3] Slicing and re-centering vertical layout from {start_time}s to {end_time}s")
     
+    if start_time < 0:
+        raise ValueError(f"❌ Pipeline Range Violation: start_time ({start_time}s) cannot be negative.")
+    if end_time <= start_time:
+        raise ValueError(f"❌ Pipeline Range Violation: end_time ({end_time}s) must occur after start_time ({start_time}s).")
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"❌ Pipeline Resource Missing: Source target not located at {video_path}")
+        
+    output_directory = os.path.dirname(output_path)
+    if output_directory:
+        os.makedirs(output_directory, exist_ok=True)
+        
     if os.path.exists(output_path):
         os.remove(output_path)
 

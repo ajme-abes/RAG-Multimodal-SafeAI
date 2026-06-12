@@ -7,7 +7,20 @@ from google import genai
 from google.genai import types
 from clip_extractor import CandidateHighlight
 from video_processor import generate_vertical_reel_clip
+from utils import retry_with_backoff
 
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(APP_DIR, ".."))
+
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+CLIPS_DIR = os.path.join(OUTPUT_DIR, "clips")
+TEMP_DIR = os.path.join(DATA_DIR, "temp_verification_slices")
+
+# Guarantee that folder path hierarchies exist on disk before invoking downstream tools
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(CLIPS_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 # Define validation checks for our multi-modal confirmation layer
 class VisualVerificationReport(BaseModel):
     is_visually_engaging: bool = Field(description="True if the visual pacing, facial cues, or action sequences are high quality.")
@@ -22,14 +35,13 @@ def stage_2_visual_verification(video_path: str, candidates: List[CandidateHighl
     client = genai.Client()
     verified_production_clips = []
 
-    # Create a temporary directory to store raw clip slices
-    temp_dir = "../data/temp_verification_slices"
-    os.makedirs(temp_dir, exist_ok=True)
+    # Use the module-level resolved TEMP_DIR constant — no self-referencing os.path.join
+    os.makedirs(TEMP_DIR, exist_ok=True)
 
     for idx, candidate in enumerate(candidates):
         print(f" Processing verification step for candidate clip #{idx+1}: {candidate.title}")
         
-        temp_clip_path = os.path.join(temp_dir, f"candidate_slice_{idx}.mp4")
+        temp_clip_path = os.path.join(TEMP_DIR, f"candidate_slice_{idx}.mp4")
         duration = candidate.end_time - candidate.start_time
 
         # Quick FFmpeg slice to create a small evaluation file
@@ -60,23 +72,26 @@ def stage_2_visual_verification(video_path: str, candidates: List[CandidateHighl
         """
 
         try:
-            response = client.models.generate_content(
-                model="gemini-2.5-pro", # Multi-modal execution requires the Pro engine
-                contents=[uploaded_video, prompt],
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=VisualVerificationReport,
-                    temperature=0.1
-                ),
-            )
+            def execute_call():
+                return client.models.generate_content(
+                    model="gemini-2.5-pro",
+                    contents=[uploaded_video, prompt],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=VisualVerificationReport,
+                        temperature=0.1,
+                    ),
+                )
+            response = retry_with_backoff(execute_call)
             
             report: VisualVerificationReport = response.parsed
             
             if report.final_relevance_decision and report.audio_energy_score > 60:
                 print(f"    Passed Verification! Audio Energy Score: {report.audio_energy_score}/100")
-                # Update the target with our verified timestamps
-                candidate.start_time = report.adjusted_start_time + candidate.start_time
-                candidate.end_time = report.adjusted_end_time + candidate.start_time
+                
+                original_baseline_start = candidate.start_time
+                candidate.start_time = report.adjusted_start_time + original_baseline_start
+                candidate.end_time   = report.adjusted_end_time   + original_baseline_start
                 verified_production_clips.append(candidate)
             else:
                 print("    Failed Verification: Rejected due to flat visual energy levels.")

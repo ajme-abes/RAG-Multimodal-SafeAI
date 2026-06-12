@@ -10,6 +10,18 @@ from audio_processor import StructuredTranscript
 from video_processor import ChronologicalVisualTimeline, generate_vertical_reel_clip
 from utils import retry_with_backoff
 
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(APP_DIR, ".."))
+
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+CLIPS_DIR = os.path.join(OUTPUT_DIR, "clips")
+TEMP_DIR = os.path.join(DATA_DIR, "temp_verification_slices")
+
+# Guarantee that folder path hierarchies exist on disk before invoking downstream tools
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(CLIPS_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 load_dotenv()
 
 # =====================================================================
@@ -74,18 +86,17 @@ def discover_highlights_autonomously(
     try:
         print("🤖 Requesting Gemini processing with zero-hallucination Pydantic constraint filters...")
 
-        def excute_call():
+        def execute_call():
             return client.models.generate_content(
                 model="gemini-2.5-flash",
-            contents=[macro_prompt],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=HighlightAnalysisResult,
-                temperature=0.1, # Keep temperature low to prevent numeric drift
+                contents=[macro_prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=HighlightAnalysisResult,
+                    temperature=0.1,
+                ),
             )
-
-            )
-        response = retry_with_backoff(excute_call)
+        response = retry_with_backoff(execute_call)
 
         # Access the typed object directly using response.parsed to avoid raw json parsing errors
         validated_data: HighlightAnalysisResult = response.parsed
@@ -114,12 +125,11 @@ def run_autonomous_editing_pipeline(
     if not discovered_highlights:
         return False
         
-    os.makedirs("../output/clips", exist_ok=True)
     
     for index, highlight in enumerate(discovered_highlights):
         print(f"🎬 Processing Clip #{index + 1}: [{highlight.hook_title}]")
         safe_title = "".join(c for c in highlight.hook_title if c.isalnum() or c in (' ', '_')).rstrip().replace(' ', '_').lower()
-        output_reel = f"../output/clips/auto_reel_{index + 1}_{safe_title}.mp4"
+        output_reel = os.path.join(CLIPS_DIR, f'auto_reel_{index + 1}_{safe_title}.mp4')
         
         # Determine the string instruction parameter for FFmpeg
         # If user picked Blurred Stack, override position and pass "blurred"

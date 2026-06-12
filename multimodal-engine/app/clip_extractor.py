@@ -1,11 +1,10 @@
-import os
 from typing import List
 from pydantic import BaseModel, Field
 from google import genai
 from google.genai import types
 from audio_processor import StructuredTranscript
 from video_processor import ChronologicalVisualTimeline
-
+from utils import retry_with_backoff
 # Define a clean structural format for Stage 1 Candidate Output
 class CandidateHighlight(BaseModel):
     title: str = Field(description="A hook-driven viral title candidate.")
@@ -36,19 +35,18 @@ def stage_1_semantic_filter(audio_transcript: StructuredTranscript, visual_break
     """
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=[prompt],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=CandidateHighlightBatch,
-                temperature=0.2, # Low temperature to ensure time accuracy
-            ),
-        )
-        
-        parsed_response: CandidateHighlightBatch = response.parsed
-        print(f" Found {len(parsed_response.candidates)} candidate highlights for Stage 2 verification.")
-        return parsed_response.candidates
+        def execute_call():
+            return client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[prompt],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=CandidateHighlightBatch,
+                    temperature=0.2,
+                ),
+            )
+        response = retry_with_backoff(execute_call)
+        return response.parsed.candidates
 
     except Exception as e:
         print(f"🚨 Stage 1 Semantic Extraction Error: {str(e)}")

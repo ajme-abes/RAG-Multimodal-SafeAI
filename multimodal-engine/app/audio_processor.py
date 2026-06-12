@@ -4,10 +4,21 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from utils import retry_with_backoff
-
 # Import the shared structural schema to fix your Streamlit ImportError
 from models import StructuredTranscript
 
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(APP_DIR, ".."))
+
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+CLIPS_DIR = os.path.join(OUTPUT_DIR, "clips")
+TEMP_DIR = os.path.join(DATA_DIR, "temp_verification_slices")
+
+# Guarantee that folder path hierarchies exist on disk before invoking downstream tools
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(CLIPS_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 load_dotenv()
 
 def extract_audio_from_video(video_path, audio_output_path):
@@ -53,18 +64,18 @@ def transcribe_audio(audio_file_path) -> StructuredTranscript:
     
     print("🤖 Processing Speech-to-Text structured inference (Waiting for engine response)...")
 
-    def excute_call():
+    def execute_call():
         return client.models.generate_content(
             model="gemini-2.5-flash",
             contents=[upload_audio, prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=StructuredTranscript,
-                temperature=0.0  # Zero out creativity to force strict transcription accuracy
+                temperature=0.0
             ),
         )
     try: 
-        response = retry_with_backoff(excute_call)
+        response = retry_with_backoff(execute_call)
         return response.parsed
         
     except Exception as e:  

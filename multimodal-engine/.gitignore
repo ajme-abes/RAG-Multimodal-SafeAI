@@ -6,3 +6,5 @@ data/extracted_frames
 data/extracted_clips
 data/extracted_real
 output/clips/*.mp4
+assets/video.mp4
+multimodal-engine/assets/video.mp4

@@ -1,43 +1,74 @@
 import os
 import sys
+from datetime import datetime
 from dotenv import load_dotenv
 from google import genai
+from clip_extractor import stage_1_semantic_filter
+from reel_generator import stage_2_visual_verification
+
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(APP_DIR, ".."))
+
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+CLIPS_DIR = os.path.join(OUTPUT_DIR, "clips")
+TEMP_DIR = os.path.join(DATA_DIR, "temp_verification_slices")
+
+# Guarantee that folder path hierarchies exist on disk before invoking downstream tools
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(CLIPS_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 # Setup system environment routing parameters
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 load_dotenv()
 
 # High-precision production component imports
-from audio_processor import extract_audio_from_video, transcribe_audio, save_transcript_todisk, StructuredTranscript
-from video_processor import extract_keyframes, analyze_scene_with_gemini, generate_vertical_reel_clip, ChronologicalVisualTimeline
+from audio_processor import extract_audio_from_video, transcribe_audio, save_transcript_todisk
+from video_processor import extract_keyframes, analyze_scene_with_gemini, generate_vertical_reel_clip
+from models import StructuredTranscript, ChronologicalVisualTimeline
 
-
-def generate_production_blog(audio_transcript: StructuredTranscript, visual_breakdown: ChronologicalVisualTimeline) -> str:
+def generate_production_blog(audio_transcript: StructuredTranscript, visual_breakdown: ChronologicalVisualTimeline, video_name: str) -> str:
     """Synthesizes structured visual mappings and text arrays into a markdown blog post."""
     print(" [3/4] Orchestrating final multimodal content synthesis via Gemini...")
     client = genai.Client()
+    current_date = datetime.now().strftime("%Y-%m-%d")
 
     # Pass the serialized clean string models to preserve structural hierarchy inside the token prompt space
     prompt = f"""
-    You are an expert technical content writer and developer documentation engineer.
+    You are an expert technical content writer and SEO documentation engineer.
     
-    Synthesize these two multimodal timelines into a clear, detailed, step-by-step Technical Blog Post in Markdown:
-    
+    I am providing you with two distinct data inputs extracted from the video file '{video_name}':
     1. TIMESTAMPED AUDIO TRANSCRIPT (JSON Mapping):
+    ---
     {audio_transcript.model_dump_json(indent=2)}
+    ---
     
     2. CHRONOLOGICAL VISUAL TIMELINE (JSON Mapping):
+    ---
     {visual_breakdown.model_dump_json(indent=2)}
+    ---
     
-    STRUCTURE RULES:
-    - Add a catchy title at the top (#).
-    - Write a short introduction explaining what software/concept is being demonstrated.
-    - Break the content down into logical step-by-step sections using clear headings (##).
-    - Blend visual timeline actions smoothly with the spoken words so it reads like a cohesive tutorial.
-    - Highlight specific keyboard shortcuts, timestamps, or interface menus using code blocks or bold text.
-    - End with a summary conclusion.
+    CRITICAL STRUCTURE REQUIREMENT:
+    You MUST begin your response with exactly this standard YAML Front Matter block (do not add backticks, trailing syntax, or markdown wrappers around it):
+    ---
+    title: "Generate a catchy, high-impact, SEO-optimized title here"
+    date: "{current_date}"
+    tags: ["Artificial Intelligence", "Tutorial", "Tech Guide"]
+    category: "Technology"
+    author: "Multimodal AI Engine"
+    description: "Write a short, engaging 150-character meta description summary here for search previews."
+    slug: "generate-a-clean-url-friendly-lowercase-slug-here"
+    ---
     
-    Do not add conversational commentary—return ONLY the markdown text blocks.
+    Following the front-matter block, write the blog post document using these strict rules:
+    - Write a short introduction explaining the core software/concept demonstrated in the clip.
+    - Break the content down into logical sections using clear H2 (##) and H3 (###) headers.
+    - Incorporate structural elements like bullet points, summary tables, and bold code blocks cleanly.
+    - Blend the visual timeline shifts smoothly with the spoken words so it reads like a comprehensive, standalone web tutorial.
+    - Highlight keyboard shortcuts, timestamps, or interface menus mentioned on screen using bold text.
+    
+    Do not add conversational commentary—return ONLY the markdown content.
     """
 
     try:
@@ -55,15 +86,10 @@ def run_integrated_pipeline(video_path: str):
     print("🚀 ----- Starting Integrated Multimodal Content Generation Pipeline -----")
 
     # Hardcoded configurations converted to strict, upgraded extensions
-    audio_output_path = "../data/extracted_audio.wav" 
-    frames_dir = "../data/extracted_frames"
-    blogs_output_path = "../output/how_multimodals_work_blog.md"
-    transcript_json_path = "../data/transcript.json"
-
-    if not os.path.exists("../output"):
-        os.makedirs("../output")
-    if not os.path.exists("../data"):
-        os.makedirs("../data")
+    audio_output_path = os.path.join(DATA_DIR, "extracted_audio.wav") 
+    frames_dir = os.path.join(DATA_DIR, "extracted_frames") 
+    blogs_output_path = os.path.join(OUTPUT_DIR, "how_multimodals_work_blog.md") 
+    transcript_json_path = os.path.join(DATA_DIR, "transcript.json") 
 
     # -------------------------------------------------------------
     # PHASE 1: Speech-To-Text Timeline Assembly
@@ -90,7 +116,7 @@ def run_integrated_pipeline(video_path: str):
     # -------------------------------------------------------------
     # PHASE 3: Content Marketing Synthesis (Long-Form Blog Asset)
     # -------------------------------------------------------------
-    final_blog_content = generate_production_blog(audio_transcript, visual_breakdown)
+    final_blog_content = generate_production_blog(audio_transcript, visual_breakdown, os.path.basename(video_path))
 
     if final_blog_content:
         with open(blogs_output_path, "w", encoding="utf-8") as f:
@@ -101,9 +127,6 @@ def run_integrated_pipeline(video_path: str):
     # PHASE 4: Short-Form Reel Extractor (Two-Stage Verification)
     # -------------------------------------------------------------
     print(" 🎬 [4/4] Activating Two-Stage Filtering Highlight Detection Routine...")
-    
-    from clip_extractor import stage_1_semantic_filter
-    from reel_generator import stage_2_visual_verification
 
     # 1. Run the Stage 1 text-based check
     candidate_clips = stage_1_semantic_filter(audio_transcript, visual_breakdown)
@@ -113,7 +136,7 @@ def run_integrated_pipeline(video_path: str):
     
     # 3. Render the verified shorts using our 9:16 vertical crop filter
     for idx, clip in enumerate(verified_clips):
-        reel_path = f"../output/viral_reel_{idx + 1}.mp4"
+        reel_path = os.path.join(CLIPS_DIR, f"viral_reel_{idx + 1}.mp4") 
         generate_vertical_reel_clip(video_path, clip.start_time, clip.end_time, reel_path)
 
     print("🏁 Pipeline run completed successfully.")

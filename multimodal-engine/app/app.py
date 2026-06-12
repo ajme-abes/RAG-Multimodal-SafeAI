@@ -1,30 +1,37 @@
-import os
+import os, re
 import sys
 import glob
+import time
 import streamlit as st
-
-# Setup system environment alignment routes
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+from datetime import datetime
 from workflow_engine import generate_production_blog
 from audio_processor import extract_audio_from_video, transcribe_audio
 from video_processor import extract_keyframes, analyze_scene_with_gemini
 from agent_optimizer import run_autonomous_editing_pipeline
-
 from models import StructuredTranscript, ChronologicalVisualTimeline
+
+# Setup system environment alignment routes
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(APP_DIR, ".."))
+
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
+CLIPS_DIR = os.path.join(OUTPUT_DIR, "clips")
+FRAMES_DIR = os.path.join(DATA_DIR, "extracted_frames")
+OUTPUT_CLIPS_DIR = os.path.join(OUTPUT_DIR, "clips")
+TEMP_DIR = os.path.join(DATA_DIR, "temp_verification_slices")
+
+# Guarantee that folder path hierarchies exist on disk before invoking downstream tools
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(CLIPS_DIR, exist_ok=True)
+os.makedirs(FRAMES_DIR, exist_ok=True)
+os.makedirs(OUTPUT_CLIPS_DIR, exist_ok=True)
+os.makedirs(TEMP_DIR, exist_ok=True)
 
 # Configure clean, production-grade page layout parameters
 st.set_page_config(page_title="Multimodal Content Engine", page_icon="🎬", layout="wide")
 
-# Sync runtime directory configurations with core backends
-DATA_DIR = "../data"
-FRAMES_DIR = "../data/extracted_frames"
-OUTPUT_CLIPS_DIR = "../output/clips"
-BLOG_OUTPUT_PATH = "../output/how_multimodals_work_blog.md"
-
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(FRAMES_DIR, exist_ok=True)
-os.makedirs(OUTPUT_CLIPS_DIR, exist_ok=True)
 
 st.title("🎬 Multimodal AI Content Engine")
 st.caption("Convert long horizontal streams into clear technical blog posts and vertical mobile shorts using a type-safe pipeline.")
@@ -50,7 +57,6 @@ with st.sidebar:
         help="Capture 1 image frame every X seconds of timeline playback."
     )
     
-    # 🆕 UPGRADE: User choices for dynamic reel layout style
     reel_style = st.selectbox(
         "📱 Reel Visual Layout Style",
         options=["Blurred Stack Mode (Presentation/Code)", "AI Smart Face Crop (Podcast/Vlog)"],
@@ -89,27 +95,41 @@ if uploaded_video is not None:
             extract_audio_from_video(video_input_path, audio_output_path)
             st.write("Transcribing audio tracks into structured Pydantic time models...")
             st.session_state.transcript_obj = transcribe_audio(audio_output_path)
+            if st.session_state.transcript_obj is None:
+                status.update(label="Phase 1 Failed: Transcription returned no data.", state="error")
+                st.error("❌ Audio transcription failed — Gemini returned no structured output. Check your GEMINI_API_KEY and try again.")
+                st.stop()
             status.update(label="Phase 1 Complete: Audio Transcript Secured!", state="complete")
-            
+
         # Phase 2 Step: Seeing
         with st.status("🎬 Phase 2: Extracting Timelines & Scene Layouts...", expanded=True) as status:
             st.write("Slicing uniform visual image arrays from video timeline...")
             extract_keyframes(video_input_path, FRAMES_DIR, interval_seconds=sampling_interval)
             st.write("Analyzing chronological frame sequences via Vision-VLM array...")
             st.session_state.visual_breakdown_obj = analyze_scene_with_gemini(FRAMES_DIR, interval_seconds=sampling_interval)
+            if st.session_state.visual_breakdown_obj is None:
+                status.update(label="Phase 2 Failed: Scene analysis returned no data.", state="error")
+                st.error("❌ Visual timeline extraction failed — no frames were found or both Gemini and OpenAI fallback failed.")
+                st.stop()
             status.update(label="Phase 2 Complete: Visual Timeline Extracted!", state="complete")
-            
+
         # Phase 3 Step: Fusing and Clipping
         with st.status("🧠 Phase 3: Synthesizing Content & Cutting Highlights...", expanded=True) as status:
             st.write("Fusing text arrays and structural visual timelines together into markdown entries...")
-            st.session_state.final_blog = generate_production_blog(
-                st.session_state.transcript_obj, 
-                st.session_state.visual_breakdown_obj
+            raw_blog_text = generate_production_blog(
+                st.session_state.transcript_obj,
+                st.session_state.visual_breakdown_obj,
+                uploaded_video.name
             )
-            
-            # Save the final blog post straight to the output directory
-            with open(BLOG_OUTPUT_PATH, "w", encoding="utf-8") as b_file:
-                b_file.write(st.session_state.final_blog)
+            st.session_state.final_blog = raw_blog_text
+
+            slug_match = re.search(r'slug:\s*"(.*?)"', raw_blog_text)
+            file_slug = slug_match.group(1) if slug_match else f"tutorial_{int(time.time())}"
+            unique_blog_filename = f"{datetime.now().strftime('%Y-%m-%d')}-{file_slug}.md"
+
+            final_blog_path = os.path.join(OUTPUT_DIR, unique_blog_filename)
+            with open(final_blog_path, "w", encoding="utf-8") as b_file:
+                b_file.write(raw_blog_text)
 
             st.write("Running Two-Stage Filtering Highlight Detection Engine...")
             # Automatically scans, validates, and runs 9:16 vertical center crops completely hands-free
@@ -119,9 +139,9 @@ if uploaded_video is not None:
                 visual_breakdown=st.session_state.visual_breakdown_obj,
                 layout_style=reel_style
             )
-            
+
             status.update(label="Phase 3 Complete: Content Generated & Reels Rendered!", state="complete")
-            
+
         st.session_state.pipeline_executed = True
         st.success("🎉 Multimodal Content Engine Processed All Layers Successfully with Zero Time Hallucinations!")
 
