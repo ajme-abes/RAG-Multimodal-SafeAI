@@ -1,9 +1,10 @@
-venv
+venv/
 .env
-__pycache__/
-*.pyc
+**/__pycache__/
+**/*.pyc
+**/*.pyo
 instance/
 *.log
-chroma_db
+chroma_db/
+.pytest_cache/
 rag-system/test/loade.py
-

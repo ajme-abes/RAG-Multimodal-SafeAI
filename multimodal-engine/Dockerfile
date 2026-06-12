@@ -14,15 +14,15 @@ ENV HOME=/home/user \
 
 WORKDIR $HOME/app
 
-# Copy local dependency maps into virtual container layers
+# Since app_dir enters the subfolder, local paths are relative to multimodal-engine/
 COPY --chown=user requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application codebase
+# Copy the specific app folder contents safely
 COPY --chown=user . .
 
-# Hugging Face Spaces strictly requires port 7860
+# Hugging Face Spaces strictly routes traffic over port 7860
 EXPOSE 7860
 
-# Run Streamlit on Hugging Face's required port configuration layout
-ENTRYPOINT ["streamlit", "run", "multimodal-engine/app/app.py", "--server.port=7860", "--server.address=0.0.0.0"]
+# Launch Streamlit on the specified port
+ENTRYPOINT ["streamlit", "run", "app/app.py", "--server.port=7860", "--server.address=0.0.0.0"]
