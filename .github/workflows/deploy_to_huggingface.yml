@@ -25,4 +25,10 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          git push --force https://ajmel:$HF_TOKEN@huggingface.co/spaces/ajmel/multi-content-engine main
+          # Retry up to 3 times with 30s delay to handle HF rate limits (429)
+          for attempt in 1 2 3; do
+            echo "Push attempt $attempt..."
+            git push --force https://ajmel:$HF_TOKEN@huggingface.co/spaces/ajmel/multi-content-engine main && break
+            echo "Attempt $attempt failed. Waiting 30s before retry..."
+            sleep 30
+          done
