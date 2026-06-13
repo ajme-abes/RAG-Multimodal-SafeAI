@@ -67,6 +67,7 @@ def generate_production_blog(audio_transcript: StructuredTranscript, visual_brea
     - Incorporate structural elements like bullet points, summary tables, and bold code blocks cleanly.
     - Blend the visual timeline shifts smoothly with the spoken words so it reads like a comprehensive, standalone web tutorial.
     - Highlight keyboard shortcuts, timestamps, or interface menus mentioned on screen using bold text.
+    - Omit call-to-action video catchphrases at the very end (e.g., discard speech elements asking to "like, share, comment, and subscribe"). 
     
     Do not add conversational commentary—return ONLY the markdown content.
     """

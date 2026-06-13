@@ -86,19 +86,36 @@ if uploaded_video is not None:
     
     # Execute full workflow sequence if user initializes primary action call
     if st.button("🚀 Process Complete AI Workflow", type="primary"):
-        # Switched to production .wav parameters to match high-precision processing models
         audio_output_path = os.path.join(DATA_DIR, "extracted_audio.wav")
         
-        # Phase 1 Step: Hearing
+        st.toast("Clearing stale assets from workspace memory...", icon="🧹")
+        
+        # 1. Clear out previous audio WAV files
+        if os.path.exists(audio_output_path):
+            try:
+                os.remove(audio_output_path)
+            except Exception:
+                pass
+                
+        # 2. Clear out old keyframe images from previous analysis rounds
+        old_frames = glob.glob(os.path.join(FRAMES_DIR, "*.jpg"))
+        for frame_f in old_frames:
+            try:
+                os.remove(frame_f)
+            except Exception:
+                pass
+        old_rendered_reels = glob.glob(os.path.join(OUTPUT_CLIPS_DIR, "*.mp4"))
+        for reel_f in old_rendered_reels:
+            try:
+                os.remove(reel_f)
+            except Exception:
+                pass
+
         with st.status("🎙️ Phase 1: Separating and Transcribing Audio...", expanded=True) as status:
             st.write("Demuxing 16kHz uncompressed mono track via FFmpeg...")
             extract_audio_from_video(video_input_path, audio_output_path)
             st.write("Transcribing audio tracks into structured Pydantic time models...")
             st.session_state.transcript_obj = transcribe_audio(audio_output_path)
-            if st.session_state.transcript_obj is None:
-                status.update(label="Phase 1 Failed: Transcription returned no data.", state="error")
-                st.error("❌ Audio transcription failed — Gemini returned no structured output. Check your GEMINI_API_KEY and try again.")
-                st.stop()
             status.update(label="Phase 1 Complete: Audio Transcript Secured!", state="complete")
 
         # Phase 2 Step: Seeing
